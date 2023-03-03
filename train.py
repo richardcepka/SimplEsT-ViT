@@ -1,19 +1,19 @@
 import copy
 import math
+import os
 import time
+from dataclasses import asdict, dataclass, field
 from functools import partial
-from dataclasses import dataclass, asdict, field
 from os.path import join as join_path
 
 import torch
 import torch.nn.functional as F
-from torchvision import datasets
-from torchvision import transforms
+from torchvision import datasets, transforms
 
-from models import SimpleViTEspaTAT, SimpleViT
-from tricks import SAM, compute_ema, mix_mixup
+from models import SimplEsTViT, SimpleViT
 from shampoo.shampoo import Shampoo
 from shampoo.shampoo_utils import GraftingType
+from tricks import SAM, compute_ema, mix_mixup
 
 
 # Config
@@ -63,16 +63,10 @@ class Config:
     opt_cfg: dict = field(
         default_factory=lambda: dict(
             lr=0.0007,  # 0.0005
-            betas=(0.9, 0.999),
             weight_decay=0.,  # 0.00005
             epsilon=1e-12,  # 1e-6
-            max_preconditioner_dim=8192,
             precondition_frequency=25,
             start_preconditioning_step=25,
-            use_decoupled_weight_decay=False,
-            grafting_type=GraftingType.ADAM,
-            grafting_epsilon=1e-08,
-            grafting_beta2=0.999
         )
     ) 
     # tricks
@@ -151,13 +145,13 @@ def get_data(batch_size, data_name='10', augment=False, traintest_size=10_000) -
     # prepare testloader and traintestloader (samples from training set)
     testloader = torch.utils.data.DataLoader(
         dataset(root=root, train=False, download=True, transform=test_transform),
-        batch_size=batch_size, shuffle=False, pin_memory=False, num_workers=4
+        batch_size=batch_size, shuffle=False, pin_memory=True, num_workers=4
     )
     traintest_data = dataset(root=root, train=True, download=False, transform=test_transform)
     traintest_data = torch.utils.data.Subset(traintest_data, torch.randperm(len(traintest_data))[:traintest_size])
     traintestloader = torch.utils.data.DataLoader(
         traintest_data,
-        batch_size=batch_size, shuffle=False, pin_memory=False, num_workers=4
+        batch_size=batch_size, shuffle=False, pin_memory=True, num_workers=4
     )
     
     return trainloader, testloader, traintestloader
@@ -174,7 +168,15 @@ def build_optimizer(model, name, opt_cfg: dict, sam=False):
     if name == "adam":
         optimizer = torch.optim.Adam(optim_groups, **opt_cfg, fused=True)
     elif name == "shampoo":
-        return Shampoo(optim_groups, **opt_cfg)
+        return Shampoo(
+            optim_groups, **opt_cfg,
+            betas=(0.9, 0.999),
+            max_preconditioner_dim=8192,
+            use_decoupled_weight_decay=False,
+            grafting_type=GraftingType.ADAM,
+            grafting_epsilon=1e-08,
+            grafting_beta2=0.999
+        )
     return SAM(optimizer, rho=0.05) if sam else optimizer 
     
 def get_cosine_schedule_with_warmup(optimizer, num_warmup_steps, num_training_steps, num_cycles=0.5, last_epoch=-1):
@@ -189,7 +191,7 @@ def get_cosine_schedule_with_warmup(optimizer, num_warmup_steps, num_training_st
 # Model
 def build_model(model_name, model_cfg: dict):
     if model_name == "espatat":
-        return SimpleViTEspaTAT(**model_cfg)
+        return SimplEsTViT(**model_cfg)
     elif model_name == "simplevit":
         return SimpleViT(**model_cfg)
 
@@ -213,7 +215,7 @@ def estimate_metrics(model, loaders, device, ctx):
         running_loss = 0
         running_acc = 0
         for x, y in loader:
-            x, y = x.to(device), y.to(device)
+            x, y = x.to(device, non_blocking=True), y.to(device, non_blocking=True)
             with ctx:
                 output = model(x)
                 loss = F.cross_entropy(output, y)
@@ -232,11 +234,12 @@ def main(cfg):
         import wandb
         wandb.init(project=cfg.wandb_project, name=cfg.wandb_run_name, config=cfg.to_dict())
         cfg = wandb.config
-        print(cfg.opt_cfg)
 
     torch.backends.cuda.matmul.allow_tf32 = True # allow tf32 on matmul
     torch.backends.cudnn.allow_tf32 = True # allow tf32 on cudnn
     set_seed(cfg.seed)
+
+    if cfg.checkpointing and (not os.path.exists("checkpoints")): os.makedirs("checkpoints")
 
     trainloader, testloader, traintestloader = get_data(cfg.batch_size, cfg.data_name, cfg.augment)
     
@@ -312,11 +315,11 @@ def main(cfg):
                         }, f'checkpoints/model{step}.pth'
                     
                     )
-                if cfg.wandb_log:
-                    model_artifact = wandb.Artifact(f"model-checkpoint-{step}", type="model")
-                    model_artifact.add_file(f'checkpoints/model{step}.pth')
-                    wandb.save(f'checkpoints/model{step}.pth')
-                    wandb.run.log_artifact(model_artifact)
+                    if cfg.wandb_log:
+                        model_artifact = wandb.Artifact(f"model-checkpoint-{step}", type="model")
+                        model_artifact.add_file(f'checkpoints/model{step}.pth')
+                        wandb.save(f'checkpoints/model{step}.pth')
+                        wandb.run.log_artifact(model_artifact)
             # _________________________
 
         dt_epoch = time.time() - t_epoch

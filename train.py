@@ -309,7 +309,7 @@ def main(cfg):
                     torch.save(
                         {
                         'epoch': epoch,
-                        'model_state_dict': model.state_dict(),
+                        'model_state_dict': (ema_model if cfg.ema else model).state_dict(),
                         'optimizer_state_dict': optimizer.state_dict(),
                         'val_acc': metrics['val/acc'],
                         }, f'checkpoints/model{step}.pth'

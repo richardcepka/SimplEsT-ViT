@@ -43,23 +43,26 @@ Simpl**E**s**T**-ViT (**E**-SPA + **T**AT) - vanilla transformer (without normal
 ## Results:
 
 ### **TAT setup:**
-|                |        | Cifar10   | Cifar100 | TinyImageNet200
+|                |        | Cifar10 (/4) | Cifar100 (/4) | TinyImageNet200 (/8) 
 | ---            | ---    | ---       | ---      | ---  |
 | SimpleViT-S    | Adam   |  0.8334  |   .      | 0.4529|
-| SimplEsT-ViT-S | <p> Adam <p> Shampoo@25 | <p>0.7936 <p>. |  <p>. <p>. | <p>0.3847 <p>. |
+| SimplEsT-ViT-S | <p> Adam <p> Shampoo@25 | <p>0.7936 <p>. |  <p>. <p>. | <p>0.3847 <p>0.4102|
 * TAT setup: lbs + drop + wd
+* /4 means patch size 4x4, /8 means patch size 8x8
 
 ### **SimpleViT setup:**
-|                |        | Cifar10   | Cifar100 | TinyImageNet200
+|                |        | Cifar10 (/4)   | Cifar100 (/4) | TinyImageNet200 (/8) 
 | ---            | ---    | ---       | ---      | ---  |
 | SimpleViT-S    | Adam   |  0.8733   |   .      | 0.5152|
 | SimplEsT-ViT-S | <p> Adam <p> Shampoo@25 | <p>0.7894 <p>. |  <p>. <p>. | <p>0.3966 <p>0.449 |
 * SimpleViT setup: randaug + mixup + wd
+* /4 means patch size 4x4, /8 means patch size 8x8
 
-Training for three times longer matches the SimpleViT training loss. In the E-SPA paper, they showed results for training five times longer, but those were from large-scale experiments. However, achieving high validation accuracy is a different story ...
+Training for three times longer with Adam matches the SimpleViT training loss. In the E-SPA paper, they showed results for training five times longer, but those were from large-scale experiments. However, achieving high validation accuracy is a different story ...
 
+As mentioned in TAT and DKS papers, "second-order methods" can significantly boost performance. However, it has not been shown for the Transformer architecture (E-SPA).
 ### **Trainability of deeper SimplEsT-ViT:**
-![SimplEsT-ViT depth 64](/assests/trainability.png)<figcaption>Model was trained on Cifar10.</figcaption>
+![SimplEsT-ViT depth 64](assests/trainability.png)<figcaption>Model was trained on Cifar10 with Adam optimizer.</figcaption>
 
 One block of SimplEsT-ViT consists of one attention layer (without projection) and 2 linear layers in the MLP block. Thus, the "effective depth" is 64 * 3 + 2 = 194 (2 = patch embedding + classification head). It is impressive to train such a deep vanilla transformer only with proper initialization.
 
@@ -80,10 +83,12 @@ One block of SimplEsT-ViT consists of one attention layer (without projection) a
         * SimplEsT-ViT - {0.0007, 0.0005} 
         
 
-It would be nice to do broader sweep over the learning rate.
+It would be nice to conduct a broader sweep over the learning rate and weight decay, especially for weight decay. This is because [LN makes the network scale invariant](https://arxiv.org/pdf/1607.06450.pdf); thus, [the behaviour of weight decay can be completely different for networks without normalization](https://www.cs.toronto.edu/~rgrosse/courses/csc2541_2022/readings/L05_normalization.pdf).
 
-For Shampoo we set att_bias=False. Because in other case is needed preconditioner_dtype=torch.double, which is way to slow.
+For Shampoo, we set att_bias=False because, in the other case, preconditioner_dtype=torch.double is required due to [numerical precision](https://twitter.com/_arohan_/status/1609757568565481483), which is way too slow.
 
+We use the same [implementation for Shampoo](https://github.com/facebookresearch/optimizers/tree/main/distributed_shampoo) as in the Cramming paper, where they show no benefits. They hypothesize that it may be due to [improper implementation](https://twitter.com/_arohan_/status/1608577721818546176) (we observed better performance for eps=1e-12 than eps=1e-6
+).
 ### Acknowledgment: 
 I want to thank KInIT for supporting the training costs of experiments.
 
@@ -114,3 +119,10 @@ sudo apt-get install build-essential
 
 ## Notes:
 * sam: bfloat eps=1.0e-12 or float16 eps=1.0e-8
+
+## Referencies: 
+* E-SPA - [Deep Transformers without Shortcuts: Modifying Self-attention for Faithful Signal Propagation ](https://openreview.net/forum?id=NPrsUQgMjKK)
+* TAT - [Deep Learning without Shortcuts: Shaping the Kernel with Tailored Rectifiers](https://arxiv.org/abs/2203.08120)
+* SimpleViT - [Better plain ViT baselines for ImageNet-1k](https://arxiv.org/abs/2205.01580)
+* Cramming - [Cramming: Training a Language Model on a Single GPU in One Day](https://arxiv.org/abs/2212.14034)
+* DKS - [Rapid training of deep neural networks without skip connections or normalization layers using Deep Kernel Shaping](https://arxiv.org/abs/2110.01765)

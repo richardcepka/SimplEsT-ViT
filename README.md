@@ -11,7 +11,7 @@ Simpl**E**s**T**-ViT (**E**-SPA + **T**AT) - vanilla transformer (without normal
 ### TinyImageNet200:
 1. Run downloand_tiny_imagenet.py
     ```bash
-    python3 downloand_tiny_imagenet.py -d data
+    python3 downloand_tiny_imagenet.py -r data
     ```
 
 ### ImageNet:

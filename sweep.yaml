@@ -1,0 +1,58 @@
+# wandb sweep --project nanovit sweep.yaml
+# set wandb_log to True in config
+program: train.py 
+name: "sweep"
+method: grid
+metric:
+  name: val/acc
+  goal: maximize
+command:
+  - ${env}
+  - python3
+  - ${program}
+  - ${args}
+parameters:
+    data_name: 
+      value: "tiny"
+    model_name: 
+      value: "espatat" 
+    num_classes:
+      value: 200
+    opt_name:
+      value: "shampoo"
+    batch_size:
+      value: 2024
+    opt_cfg:
+      parameters:
+        lr:
+          values: [0.0007, 0.0005]
+        weight_decay:
+          values: [0.00005, 0]
+        epsilon:
+          value: 0.000000000001
+    model_cfg:
+      parameters:
+        drop_p: 
+          values: [0.2, 0]
+        image_size:
+          value: 64
+        patch_size:
+          value: 8
+        num_classes:
+          value: 200
+        dim:
+          value: 384
+        depth:
+          value: 12
+        heads:
+         value: 6
+        mlp_dim:
+          value: 1536
+        c_val_0_target:
+          value: 0.9
+        gamma_max_depth:
+          value: 0.005  
+        att_bias:
+          value: False
+        ff_biase:
+          value: True

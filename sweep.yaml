@@ -30,6 +30,10 @@ parameters:
           values: [0.00005, 0]
         epsilon:
           value: 0.000000000001
+        precondition_frequency:
+          value: 25
+        start_preconditioning_step:
+          value: 25
     model_cfg:
       parameters:
         drop_p: 
@@ -53,6 +57,6 @@ parameters:
         gamma_max_depth:
           value: 0.005  
         att_bias:
-          value: False
+          value: True
         ff_biase:
           value: True

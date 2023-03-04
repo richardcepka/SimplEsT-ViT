@@ -47,22 +47,22 @@ Simpl**E**s**T**-ViT (**E**-SPA + **T**AT) - vanilla transformer (without normal
 | ---            | ---    | ---       | ---      | ---  |
 | SimpleViT-S    | Adam   |  0.8334  |   .      | 0.4529|
 | SimplEsT-ViT-S | <p> Adam <p> Shampoo@25 | <p>0.7936 <p>. |  <p>. <p>. | <p>0.3847 <p>0.4102|
-* TAT setup: label smoothing + dropout  + weight decay
-* /4 means patch size 4x4, /8 means patch size 8x8
+* TAT setup: label smoothing + dropout  + weight decay.
 
 ### **SimpleViT setup:**
 |                |        | Cifar10 (/4)   | Cifar100 (/4) | TinyImageNet200 (/8) 
 | ---            | ---    | ---       | ---      | ---  |
 | SimpleViT-S    | Adam   |  0.8733   |   .      | 0.5152|
 | SimplEsT-ViT-S | <p> Adam <p> Shampoo@25 | <p>0.7894 <p>. |  <p>. <p>. | <p>0.3966 <p>0.449 |
-* SimpleViT setup: randaugment + mixup + weight decay
-* /4 means patch size 4x4, /8 means patch size 8x8
+* SimpleViT setup: randaugment + mixup + weight decay.
 
-Training for three times longer with Adam matches the SimpleViT training loss. In the E-SPA paper, they showed results for training five times longer, but those were from large-scale experiments. However, achieving high validation accuracy is a different story ...
+Training for three times longer with Adam matches the SimpleViT-S training loss. In the E-SPA paper, they showed results for training five times longer, but those were from large-scale experiments. However, achieving high validation accuracy is a different story ...
 
 As mentioned in the TAT and DKS papers, "second-order methods" can significantly boost performance. However, it has not been validated for the Transformer architecture (E-SPA).
 
 * Shampoo@25 was ~1.25x slower than Adam.
+* The ViT (-S) architecture naming convention can be found [here](https://github.com/google-research/big_vision/blob/main/big_vision/models/vit.py#L248).
+* /4 means patch size 4x4, /8 means patch size 8x8.
 ### **Trainability of deeper SimplEsT-ViT:**
 ![SimplEsT-ViT depth 64](assests/trainability.png)<figcaption>Model was trained on Cifar10 with Adam optimizer.</figcaption>
 

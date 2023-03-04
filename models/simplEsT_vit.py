@@ -155,8 +155,24 @@ def get_decomposed_kernel_matrix(dim, depth, alpha_max_depth, max_depth, inverse
         return torch.eye(dim)
 
     gamma_depth = get_gamma_depth(depth, alpha_max_depth, max_depth)
-    kernel_matrix = get_kernel_matrix(dim, gamma_depth)
-    return (invsqr_matrix(kernel_matrix) if inverse else sqrt_matrix(kernel_matrix)).float()  # convert back to float32
+    kernel_matrix = get_kernel_matrix(dim, gamma_depth, dtype=torch.double) # calculate on double precision, float64
+    """
+    A COMPATIBILITY WITH NON-CAUSAL ATTENTION: (page 15)
+    "For our SPA methods, it is straightforward to extend
+    to non-causal attention by changing Ll in Eqs. (8) and (9) from 
+    being the Cholesky decompositionof Σl to being the (symmetric) 
+    matrix square root of Σl."
+
+    
+    Lemma .1: (page 31)
+    "It is clear that Σ is positive semi definite, 
+    as it is the covariance matrix of a stationary 
+    Ornstein-Uhlenbeck process, hence a Cholesky factor must exis"
+
+    However, Σ must be positive definite, 
+    because in other case, L will not be invertible.
+    """
+    return sqrtpd(kernel_matrix, inverse).float() # convert back to float32
 
 
 def get_gamma_depth(depth, alpha_max_depth, max_depth):
@@ -164,23 +180,23 @@ def get_gamma_depth(depth, alpha_max_depth, max_depth):
     return -(1 / 2) * math.log(1 - alpha_max_depth**exponent)
 
 
-def get_kernel_matrix(dim, gamma_depth):
+def get_kernel_matrix(dim, gamma_depth, dtype=torch.float):
     # E-SPA
     def _get_all_subtracted_pairs(x, y):
         return x.unsqueeze(1) - y.unsqueeze(0)
 
-    _arange = torch.arange(dim, dtype=torch.double)  # calculate on double precision, float64
+    _arange = torch.arange(dim, dtype=dtype)
     return torch.exp(-gamma_depth * _get_all_subtracted_pairs(_arange, _arange).abs())
 
 
-def sqrt_matrix(A):
-    U, S, V = torch.svd(A)
-    return U @ torch.diag(torch.sqrt(S)) @ V.t()
-
-
-def invsqr_matrix(A):
-    U, S, V = torch.svd(A)
-    return U @ torch.diag(torch.rsqrt(S)) @ V.t()
+def sqrtpd(A, inverse=False):
+    """Compute the (inverse) square root of a Symmetric positive definite matrix"""
+    eigvals, eigvecs = torch.linalg.eigh(A)
+    # Compute (inverse) square root of eigenvalues
+    threshold = eigvals.max(-1).values * eigvals.size(-1) * torch.finfo(eigvals.dtype).eps
+    sqrt_eigvals = (torch.rsqrt if inverse else torch.sqrt)(torch.clamp(eigvals, min=threshold))
+    # Compute matrix (inverse) square root
+    return (eigvecs * sqrt_eigvals.unsqueeze(-2)) @ eigvecs.t()
 # _________________________________________________________________
 
 # Helpers
@@ -240,7 +256,7 @@ class Attention(nn.Module):
     def __init__(
             self, dim, seq_lenght, depth, 
             max_depth, alpha_max_depth, heads, 
-            qkv_bias=True, eps=1e-16,
+            qkv_bias=True
     ):
         super().__init__()
         assert dim % heads == 0
@@ -269,14 +285,13 @@ class Attention(nn.Module):
         current = get_decomposed_kernel_matrix(
             seq_lenght, depth, alpha_max_depth, max_depth, inverse=False
         )
-        attention = current @ previous_inv
+        attention = (current @ previous_inv).float()
         # make sure all values are positive
-        # reason can be numerical precision, or E-SPA is only empirically verified that attention is positive
+        # reason can be numerical precision (E-SPA is only empirically verified that attention is positive)
         min_value = attention.min()
-        if min_value < 0: 
-            shift = min_value.abs()
-            print(f"Attention at depth {depth} has negative values. Shift all values by {shift.item()}")
-            attention += shift + eps
+        if min_value <= 0: 
+            print(f"Attention at depth {depth} had negative or zero values {min_value}.")
+            attention = torch.clamp(attention, min=min_value.abs() + torch.finfo(attention.dtype).eps)
 
         d, B = decompose_attention(attention)
         self.register_buffer("d", d.reshape(1, 1, -1, 1))

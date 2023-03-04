@@ -54,7 +54,7 @@ class Config:
             drop_p=0.,
             c_val_0_target=0.9,  # TAT 
             gamma_max_depth=0.005,  # E-SPA
-            att_bias=False,
+            att_bias=True,
             ff_biase=True,
         )
     )

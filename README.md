@@ -1,6 +1,6 @@
 
 # SimplEsT-ViT
-Simpl**E**s**T**-ViT (**E**-SPA + **T**AT) - vanilla transformer (without normalization and rezidual connection), E-SPA (gama = 0.005) + TAT (eta = 0.9).
+Simpl**E**s**T**-ViT (**E**-SPA + **T**AT) - vanilla transformer (without normalizations and skip connections), E-SPA (gama = 0.005) + TAT (eta = 0.9).
 
 ## Dependencies:
 * pytorch-nightly
@@ -47,7 +47,7 @@ Simpl**E**s**T**-ViT (**E**-SPA + **T**AT) - vanilla transformer (without normal
 | ---            | ---    | ---       | ---      | ---  |
 | SimpleViT-S    | Adam   |  0.8334  |   .      | 0.4529|
 | SimplEsT-ViT-S | <p> Adam <p> Shampoo@25 | <p>0.7936 <p>. |  <p>. <p>. | <p>0.3847 <p>0.4102|
-* TAT setup: lbs + drop + wd
+* TAT setup: label smoothing + dropout  + weight decay
 * /4 means patch size 4x4, /8 means patch size 8x8
 
 ### **SimpleViT setup:**
@@ -55,12 +55,14 @@ Simpl**E**s**T**-ViT (**E**-SPA + **T**AT) - vanilla transformer (without normal
 | ---            | ---    | ---       | ---      | ---  |
 | SimpleViT-S    | Adam   |  0.8733   |   .      | 0.5152|
 | SimplEsT-ViT-S | <p> Adam <p> Shampoo@25 | <p>0.7894 <p>. |  <p>. <p>. | <p>0.3966 <p>0.449 |
-* SimpleViT setup: randaug + mixup + wd
+* SimpleViT setup: randaugment + mixup + weight decay
 * /4 means patch size 4x4, /8 means patch size 8x8
 
 Training for three times longer with Adam matches the SimpleViT training loss. In the E-SPA paper, they showed results for training five times longer, but those were from large-scale experiments. However, achieving high validation accuracy is a different story ...
 
 As mentioned in the TAT and DKS papers, "second-order methods" can significantly boost performance. However, it has not been validated for the Transformer architecture (E-SPA).
+
+* Shampoo@25 was ~1.25x slower than Adam.
 ### **Trainability of deeper SimplEsT-ViT:**
 ![SimplEsT-ViT depth 64](assests/trainability.png)<figcaption>Model was trained on Cifar10 with Adam optimizer.</figcaption>
 
@@ -119,11 +121,12 @@ sudo apt-get install build-essential
 
 
 ## Notes:
-* sam: bfloat eps=1.0e-12 or float16 eps=1.0e-8
+* SAM: bfloat eps=1.0e-12 or float16 eps=1.0e-8
+* EMA + Shampoo > SAM + Shampoo
 
 ## Referencies: 
 * E-SPA - [Deep Transformers without Shortcuts: Modifying Self-attention for Faithful Signal Propagation ](https://openreview.net/forum?id=NPrsUQgMjKK)
 * TAT - [Deep Learning without Shortcuts: Shaping the Kernel with Tailored Rectifiers](https://arxiv.org/abs/2203.08120)
+* DKS - [Rapid training of deep neural networks without skip connections or normalization layers using Deep Kernel Shaping](https://arxiv.org/abs/2110.01765)
 * SimpleViT - [Better plain ViT baselines for ImageNet-1k](https://arxiv.org/abs/2205.01580)
 * Cramming - [Cramming: Training a Language Model on a Single GPU in One Day](https://arxiv.org/abs/2212.14034)
-* DKS - [Rapid training of deep neural networks without skip connections or normalization layers using Deep Kernel Shaping](https://arxiv.org/abs/2110.01765)

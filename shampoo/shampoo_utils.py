@@ -386,8 +386,8 @@ class ShampooPreconditioner(Preconditioner):
             # Otherwise, generates a full Shampoo preconditioner.
             else:
                 preconditioner_type = PreconditionerType.FULL
-                factor_matrix = torch.zeros(
-                    (dim, dim), dtype=self._dtype, device=param.device
+                factor_matrix = self._epsilon * torch.eye(  # CHANGE: before torch.zeros
+                    dim, dtype=self._dtype, device=param.device
                 )
                 inv_factor_matrix = torch.zeros(
                     (dim, dim), dtype=param.dtype, device=param.device

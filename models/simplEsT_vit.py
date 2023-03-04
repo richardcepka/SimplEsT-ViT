@@ -169,8 +169,8 @@ def get_decomposed_kernel_matrix(dim, depth, alpha_max_depth, max_depth, inverse
     as it is the covariance matrix of a stationary 
     Ornstein-Uhlenbeck process, hence a Cholesky factor must exis"
 
-    However, Σ must be positive definite, 
-    because in other case, L will not be invertible.
+    However, Σ must be positive definite (not semi-definite), 
+    because in another case, L will not be invertible.
     """
     return sqrtpd(kernel_matrix, inverse).float() # convert back to float32
 

@@ -164,7 +164,7 @@ def get_decomposed_kernel_matrix(dim, depth, alpha_max_depth, max_depth, inverse
     matrix square root of Σl."
 
     
-    Lemma .1: (page 31)
+    Lemma 1.: (page 31)
     "It is clear that Σ is positive semi definite, 
     as it is the covariance matrix of a stationary 
     Ornstein-Uhlenbeck process, hence a Cholesky factor must exis"

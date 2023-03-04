@@ -46,7 +46,7 @@ Simpl**E**s**T**-ViT (**E**-SPA + **T**AT) - vanilla transformer (without normal
 |                |        | Cifar10 (/4) | Cifar100 (/4) | TinyImageNet200 (/8) 
 | ---            | ---    | ---       | ---      | ---  |
 | SimpleViT-S    | Adam   |  0.8334  |   .      | 0.4529|
-| SimplEsT-ViT-S | <p> Adam <p> Shampoo@25 | <p>0.7936 <p>. |  <p>. <p>. | <p>0.3847 <p>0.4102|
+| SimplEsT-ViT-S | <p> Adam <p> Shampoo@25 | <p>0.7936 <p>. |  <p>. <p>. | <p>0.3847 <p>0.4208|
 * TAT setup: label smoothing + dropout  + weight decay.
 
 ### **SimpleViT setup:**
@@ -88,14 +88,14 @@ One block of SimplEsT-ViT consists of one attention layer (without projection) a
 It would be beneficial to perform a wider range of experiments to determine the optimal learning rate and weight decay values, particularly for weight decay. This is because normalization through [LN makes the network scale invariant](https://arxiv.org/pdf/1607.06450.pdf), resulting in a [different behavior for weight decay](https://www.cs.toronto.edu/~rgrosse/courses/csc2541_2022/readings/L05_normalization.pdf) compared to networks without normalization. We hypothesize that weight decay should be much smaller for SimplEsT-ViT than for SimpleViT.
 
 ### Shampoo implementation discusion:
-For Shampoo, we set att_bias=False because, in the other case, preconditioner_dtype=torch.double is required due to [numerical precision](https://twitter.com/_arohan_/status/1609757568565481483) (eps=1e-6 didn't help), which is way too slow.
+We use the same [implementation for Shampoo](https://github.com/facebookresearch/optimizers/tree/main/distributed_shampoo) as in the Cramming paper, where they show no benefits. They hypothesize that it may be due to [improper implementation](https://twitter.com/_arohan_/status/1608577721818546176). However, based on my understanding, the discussion is about the Newton iteration method, which is not used as default in the Shampoo implementation we use (default is eigendecomposition).
 
-We use the same [implementation for Shampoo](https://github.com/facebookresearch/optimizers/tree/main/distributed_shampoo) as in the Cramming paper, where they show no benefits. They hypothesize that it may be due to [improper implementation](https://twitter.com/_arohan_/status/1608577721818546176) (we observed better performance for eps=1e-12 than eps=1e-6). However, if I understand correctly, the discussion is about the Newton iteration method, which is not used as default in the Shampoo implementation we use (default is eigendecomposition).
+We also tried Newton's method with the tricks mentioned [here](https://twitter.com/_arohan_/status/1608577721818546176). Nevertheless, most of the time, Newton's method didn't converge. Performance was more or less the same (or worse) as eigendecomposition, and it was slower too. That's why, we stick with eigendecomposition.
+
 ### Acknowledgment: 
 I want to thank KInIT for supporting the training costs of experiments. All experiments were done on RTX 3090.
 
 ## ImageNet:
-* compare with SimpleViT on 90 epochs on ImageNet
 * A6000, 1024 batch - 1251 steps/epoch
 
     * max-autotune (max 1min), Shampoo@1 - 1.8796 step/s, (bias_att=False)
@@ -117,11 +117,6 @@ sudo apt-get install build-essential
 ```bash
  pip3 install numpy --pre torch torchvision --force-reinstall --index-url https://download.pytorch.org/whl/nightly/cu117
 ```
-
-
-## Notes:
-* SAM: bfloat eps=1.0e-12 or float16 eps=1.0e-8
-* EMA + Shampoo > SAM + Shampoo
 
 ## Referencies: 
 * E-SPA - [Deep Transformers without Shortcuts: Modifying Self-attention for Faithful Signal Propagation ](https://openreview.net/forum?id=NPrsUQgMjKK)

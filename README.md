@@ -60,7 +60,7 @@ Simpl**E**s**T**-ViT (**E**-SPA + **T**AT) - vanilla transformer (without normal
 
 Training for three times longer with Adam matches the SimpleViT training loss. In the E-SPA paper, they showed results for training five times longer, but those were from large-scale experiments. However, achieving high validation accuracy is a different story ...
 
-As mentioned in TAT and DKS papers, "second-order methods" can significantly boost performance. However, it has not been shown for the Transformer architecture (E-SPA).
+As mentioned in the TAT and DKS papers, "second-order methods" can significantly boost performance. However, it has not been validated for the Transformer architecture (E-SPA).
 ### **Trainability of deeper SimplEsT-ViT:**
 ![SimplEsT-ViT depth 64](assests/trainability.png)<figcaption>Model was trained on Cifar10 with Adam optimizer.</figcaption>
 
@@ -83,12 +83,13 @@ One block of SimplEsT-ViT consists of one attention layer (without projection) a
         * SimplEsT-ViT - {0.0007, 0.0005} 
         
 
-It would be nice to conduct a broader sweep over the learning rate and weight decay, especially for weight decay. This is because [LN makes the network scale invariant](https://arxiv.org/pdf/1607.06450.pdf); thus, [the behaviour of weight decay can be completely different for networks without normalization](https://www.cs.toronto.edu/~rgrosse/courses/csc2541_2022/readings/L05_normalization.pdf).
+It would be beneficial to perform a wider range of experiments to determine the optimal learning rate and weight decay values, particularly for weight decay. This is because normalization through [LN makes the network scale invariant](https://arxiv.org/pdf/1607.06450.pdf), resulting in a [different behavior for weight decay](https://www.cs.toronto.edu/~rgrosse/courses/csc2541_2022/readings/L05_normalization.pdf) compared to networks without normalization. We hypothesize that weight decay should be much smaller for SimplEsT-ViT than for SimpleViT.
 
-For Shampoo, we set att_bias=False because, in the other case, preconditioner_dtype=torch.double is required due to [numerical precision](https://twitter.com/_arohan_/status/1609757568565481483), which is way too slow.
+### Shampoo implementation discusion:
+For Shampoo, we set att_bias=False because, in the other case, preconditioner_dtype=torch.double is required due to [numerical precision](https://twitter.com/_arohan_/status/1609757568565481483) (eps=1e-6 didn't help), which is way too slow.
 
 We use the same [implementation for Shampoo](https://github.com/facebookresearch/optimizers/tree/main/distributed_shampoo) as in the Cramming paper, where they show no benefits. They hypothesize that it may be due to [improper implementation](https://twitter.com/_arohan_/status/1608577721818546176) (we observed better performance for eps=1e-12 than eps=1e-6
-).
+). However, if I understand correctly, the discussion is about the Newton iteration method, which is not used as default in the Shampoo implementation we use (default is eigendecomposition).
 ### Acknowledgment: 
 I want to thank KInIT for supporting the training costs of experiments.
 

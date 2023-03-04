@@ -90,10 +90,9 @@ It would be beneficial to perform a wider range of experiments to determine the 
 ### Shampoo implementation discusion:
 For Shampoo, we set att_bias=False because, in the other case, preconditioner_dtype=torch.double is required due to [numerical precision](https://twitter.com/_arohan_/status/1609757568565481483) (eps=1e-6 didn't help), which is way too slow.
 
-We use the same [implementation for Shampoo](https://github.com/facebookresearch/optimizers/tree/main/distributed_shampoo) as in the Cramming paper, where they show no benefits. They hypothesize that it may be due to [improper implementation](https://twitter.com/_arohan_/status/1608577721818546176) (we observed better performance for eps=1e-12 than eps=1e-6
-). However, if I understand correctly, the discussion is about the Newton iteration method, which is not used as default in the Shampoo implementation we use (default is eigendecomposition).
+We use the same [implementation for Shampoo](https://github.com/facebookresearch/optimizers/tree/main/distributed_shampoo) as in the Cramming paper, where they show no benefits. They hypothesize that it may be due to [improper implementation](https://twitter.com/_arohan_/status/1608577721818546176) (we observed better performance for eps=1e-12 than eps=1e-6). However, if I understand correctly, the discussion is about the Newton iteration method, which is not used as default in the Shampoo implementation we use (default is eigendecomposition).
 ### Acknowledgment: 
-I want to thank KInIT for supporting the training costs of experiments.
+I want to thank KInIT for supporting the training costs of experiments. All experiments were done on RTX 3090.
 
 ## ImageNet:
 * compare with SimpleViT on 90 epochs on ImageNet

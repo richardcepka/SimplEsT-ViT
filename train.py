@@ -119,12 +119,12 @@ def get_data(batch_size, data_name='10', augment=False, traintest_size=10_000) -
     
     # Define transforms
     t_augment_list = [] if not augment else [
-        transforms.RandomCrop(size=size, padding=4) if not data_name == 'imagenet' else transforms.RandomResizedCrop(size),
+        transforms.RandomCrop(size=size, padding=4) if data_name != 'imagenet' else transforms.RandomResizedCrop(size),
         transforms.RandomHorizontalFlip(),
         transforms.RandAugment(num_ops=2, magnitude=10)
     ]
 
-    t_eval_list = [] if not data_name == 'imagenet' else [
+    t_eval_list = [] if data_name != 'imagenet' else [
         transforms.Resize(256), 
         transforms.CenterCrop(size)
     ]

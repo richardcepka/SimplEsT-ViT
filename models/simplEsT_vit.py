@@ -9,92 +9,92 @@ from torch import nn
 # DKS/TAT https://github.com/deepmind/dks/blob/main/dks/pytorch/parameter_sampling_functions.py
 # _________________________________________________________________
 def scaled_uniform_orthogonal_(weights, gain=1.0, delta=True):
-  """Initializes fully-connected or conv weights using the SUO distribution.
-  Similar to torch.nn.init.orthogonal_, except that it supports Delta
-  initializations, and sampled weights are rescaled by
-  ``max(sqrt(out_dim / in_dim), 1)``, so that the layer preserves q values at
-  initialization-time (assuming initial biases of zero).
-  Note that as with all PyTorch functions ending with '_', this function
-  modifies the value of its tensor argument in-place.
-  Should be used with a zeros initializer for the bias parameters for DKS/TAT.
-  See the "Parameter distributions" section of DKS paper
-  (https://arxiv.org/abs/2110.01765) for a discussion of the SUO distribution
-  and Delta initializations.
-  Args:
-    weights: A PyTorch Tensor corresponding to the weights to be randomly
-      initialized.
-    gain: A float giving an additional scale factor applied on top of the
-      standard recaling used in the SUO distribution. This should be left
-      at its default value when using DKS/TAT. (Default: 1.0)
-    delta: A bool determining whether or not to use a Delta initialization
-      (which zeros out all weights except those in the central location of
-      convolutional filter banks). (Default: True)
-  Returns:
-    The ``weights`` argument (whose value will be initialized).
-  """
+    """Initializes fully-connected or conv weights using the SUO distribution.
+    Similar to torch.nn.init.orthogonal_, except that it supports Delta
+    initializations, and sampled weights are rescaled by
+    ``max(sqrt(out_dim / in_dim), 1)``, so that the layer preserves q values at
+    initialization-time (assuming initial biases of zero).
+    Note that as with all PyTorch functions ending with '_', this function
+    modifies the value of its tensor argument in-place.
+    Should be used with a zeros initializer for the bias parameters for DKS/TAT.
+    See the "Parameter distributions" section of DKS paper
+    (https://arxiv.org/abs/2110.01765) for a discussion of the SUO distribution
+    and Delta initializations.
+    Args:
+        weights: A PyTorch Tensor corresponding to the weights to be randomly
+        initialized.
+        gain: A float giving an additional scale factor applied on top of the
+        standard recaling used in the SUO distribution. This should be left
+        at its default value when using DKS/TAT. (Default: 1.0)
+        delta: A bool determining whether or not to use a Delta initialization
+        (which zeros out all weights except those in the central location of
+        convolutional filter banks). (Default: True)
+    Returns:
+        The ``weights`` argument (whose value will be initialized).
+    """
 
-  shape = list(weights.size())
+    shape = list(weights.size())
 
-  if delta and len(shape) != 2:
-    # We assume 'weights' is a filter bank when len(shape) != 2
+    if delta and len(shape) != 2:
+        # We assume 'weights' is a filter bank when len(shape) != 2
 
-    # In PyTorch, conv filter banks have that shape
-    # [in_dim, out_dim, loc_dim_1, loc_dim_2]
-    in_dim = shape[0]
-    out_dim = shape[1]
+        # In PyTorch, conv filter banks have that shape
+        # [in_dim, out_dim, loc_dim_1, loc_dim_2]
+        in_dim = shape[0]
+        out_dim = shape[1]
 
-    rescale_factor = max(math.sqrt(out_dim / in_dim), 1.0)
+        rescale_factor = max(math.sqrt(out_dim / in_dim), 1.0)
 
-    nonzero_part = torch.nn.init.orthogonal_(weights.new_empty(in_dim, out_dim),
-                                             gain=(rescale_factor * gain))
+        nonzero_part = torch.nn.init.orthogonal_(weights.new_empty(in_dim, out_dim),
+                                                gain=(rescale_factor * gain))
 
-    if any(s % 2 != 1 for s in shape[2:]):
-      raise ValueError("All spatial axes must have odd length for Delta "
-                       "initializations.")
+        if any(s % 2 != 1 for s in shape[2:]):
+            raise ValueError("All spatial axes must have odd length for Delta "
+                            "initializations.")
 
-    midpoints = [(s - 1) // 2 for s in shape[2:]]
-    indices = [slice(None), slice(None)] + midpoints
+        midpoints = [(s - 1) // 2 for s in shape[2:]]
+        indices = [slice(None), slice(None)] + midpoints
 
-    with torch.no_grad():
-      weights.fill_(0.0)
-      weights.__setitem__(indices, nonzero_part)
+        with torch.no_grad():
+            weights.fill_(0.0)
+            weights.__setitem__(indices, nonzero_part)
 
-      return weights
+        return weights
 
-  else:
+    else:
 
-    # torch.nn.orthogonal_ flattens dimensions [1:] instead of [:-1], which is
-    # the opposite of what we want here. So we'll first compute the version with
-    # the first two dimensions swapped, and then we'll transpose at the end.
+        # torch.nn.orthogonal_ flattens dimensions [1:] instead of [:-1], which is
+        # the opposite of what we want here. So we'll first compute the version with
+        # the first two dimensions swapped, and then we'll transpose at the end.
 
-    shape = [shape[1], shape[0]] + shape[2:]
+        shape = [shape[1], shape[0]] + shape[2:]
 
-    in_dim = math.prod(shape[1:])
-    out_dim = shape[0]
+        in_dim = math.prod(shape[1:])
+        out_dim = shape[0]
 
-    rescale_factor = max(math.sqrt(out_dim / in_dim), 1.0)
+        rescale_factor = max(math.sqrt(out_dim / in_dim), 1.0)
 
-    weights_t = torch.nn.init.orthogonal_(weights.new_empty(shape),
-                                          gain=(rescale_factor * gain))
-    with torch.no_grad():
-      return weights.copy_(weights_t.transpose_(0, 1))
+        weights_t = torch.nn.init.orthogonal_(weights.new_empty(shape),
+                                            gain=(rescale_factor * gain))
+        with torch.no_grad():
+            return weights.copy_(weights_t.transpose_(0, 1))
 # _________________________________________________________________
 
 # TAT https://arxiv.org/pdf/2203.08120.pdf
 # _________________________________________________________________
 def lrelu_cmap(c, neg_slope):
-  # Equation 9.
-  return (
-      c 
-      + 
-      (
-        ((1 - neg_slope)**2)
-        /
-        (math.pi * (1 + neg_slope**2))
-      ) 
-      * 
-      (math.sqrt(1 - c**2) - (c * math.acos(c)))
-  )
+    # Equation 9.
+    return (
+        c 
+        + 
+        (
+            ((1 - neg_slope)**2)
+            /
+            (math.pi * (1 + neg_slope**2))
+        ) 
+        * 
+        (math.sqrt(1 - c**2) - (c * math.acos(c)))
+    )
 
 
 def binary_search(f, target, input_, min_, max_, tol=1e-8, max_eval=100):
@@ -113,16 +113,18 @@ def binary_search(f, target, input_, min_, max_, tol=1e-8, max_eval=100):
           
         input_ = 0.5 * (min_ + max_)
 
-    raise ValueError(f"Maximum evaluations ({max_eval}) exceeded while searching "
-                   "for solution. This is probably due the specified target "
-                   "being unachievable for the given architecture. For example,"
-                   " a Leaky-ReLU MLP of only a few layers may not be able "
-                   "to achieve the default C(0) target of 0.9 under TAT. "
-                   "Intuitively, this is because a shallow network cannot be "
-                   "made sufficiently nonlinear with such activation functions."
-                   " The solution to this would be to either use a smaller "
-                   "value for the C(0) target (corresponding to a more linear "
-                   "model), or to a use a deeper architecture.")
+    raise ValueError(
+        f"Maximum evaluations ({max_eval}) exceeded while searching "
+        "for solution. This is probably due the specified target "
+        "being unachievable for the given architecture. For example,"
+        " a Leaky-ReLU MLP of only a few layers may not be able "
+        "to achieve the default C(0) target of 0.9 under TAT. "
+        "Intuitively, this is because a shallow network cannot be "
+        "made sufficiently nonlinear with such activation functions."
+        " The solution to this would be to either use a smaller "
+        "value for the C(0) target (corresponding to a more linear "
+        "model), or to a use a deeper architecture."
+    )
 
 
 class TReLU(nn.Module):
@@ -155,7 +157,7 @@ def get_decomposed_kernel_matrix(dim, depth, alpha_max_depth, max_depth, inverse
         return torch.eye(dim)
 
     gamma_depth = get_gamma_depth(depth, alpha_max_depth, max_depth)
-    kernel_matrix = get_kernel_matrix(dim, gamma_depth, dtype=torch.double) # calculate on double precision, float64
+    kernel_matrix = get_kernel_matrix(dim, gamma_depth, dtype=torch.double)  # calculate on double precision, float64
     """
     A COMPATIBILITY WITH NON-CAUSAL ATTENTION: (page 15)
     "For our SPA methods, it is straightforward to extend
@@ -163,7 +165,6 @@ def get_decomposed_kernel_matrix(dim, depth, alpha_max_depth, max_depth, inverse
     being the Cholesky decompositionof Σl to being the (symmetric) 
     matrix square root of Σl."
 
-    
     Lemma 1.: (page 31)
     "It is clear that Σ is positive semi definite, 
     as it is the covariance matrix of a stationary 
@@ -201,7 +202,7 @@ def sqrtpd(A, inverse=False):
 
 # Helpers
 # _________________________________________________________________
-def pair(t): 
+def pair(t):
     return t if isinstance(t, tuple) else (t, t)
 
 
@@ -298,7 +299,7 @@ class Attention(nn.Module):
         self.register_buffer("B", B.unsqueeze(0).unsqueeze(0))
         # _________________________________________________________________
 
-        self.flash = True 
+        self.flash = True
         if not self.flash: print("Not Using Flash Attention CUDA Kernels")
 
     def forward(self, x):

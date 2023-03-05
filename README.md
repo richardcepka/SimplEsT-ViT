@@ -96,17 +96,16 @@ We also tried Newton's method with the tricks mentioned [here](https://twitter.c
 I want to thank KInIT for supporting the training costs of experiments. All experiments were done on RTX 3090.
 
 ## ImageNet:
-* A6000, 1024 batch - 1251 steps/epoch
+* A100 SXM4-80GB
+     *  batch size = 2048 + 512 + 64 + 32 (steps/epoch = 482)
+        *  Shampoo@1: step/s ~ 2.5463 
+        *  Adam: step/s ~ 0.7382
+        
+        We aim to adjust the frequency of the shampoo optimizer in such a manner that the speed of the shampoo optimizer is 1.25 times slower (TAT paper) than that of the Adam optimizer.
+        
+        $x * 2.5463 + (1-x) * 0.7382 \sim 1.25 => x \sim 0.1$.
 
-    * max-autotune (max 1min), Shampoo@1 - 1.8796 step/s, (bias_att=False)
-    * max-autotune (max 1min), Shampoo@1 - 5.3443 step/s, (bias_att=True, preconditioner_dtype=torch.double)
-    * max-autotune, Shampoo@INF - 0.5562 step/s, (bias_att=False)
-    * default, Shampoo@1 - 1.927 step/s, (bias_att=False)
-    * default, Adam - 0.5434 step/s, (bias_att=False)
-    * default, Adam - 0.5619 step/s, (bias_att=True)
-    * default, Adam (fused) - 0.5497 step/s, (bias_att=False)
-    * max-autotune, Adam - 0.497 step/s, (bias_att=False)
-    * max-autotune, Adam - 0.5205 step/s, (bias_att=True)
+        Thus the frequency will be 100, Shampoo@100.
 
 
 

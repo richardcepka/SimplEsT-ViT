@@ -45,15 +45,15 @@ Simpl**E**s**T**-ViT (**E**-SPA + **T**AT) - vanilla transformer (without normal
 ### **TAT setup:**
 |                |        | Cifar10 (/4) | Cifar100 (/4) | TinyImageNet200 (/8) 
 | ---            | ---    | ---       | ---      | ---  |
-| SimpleViT-S    | Adam   |  0.8334  |   .      | 0.4529|
-| SimplEsT-ViT-S | <p> Adam <p> Shampoo@25 | <p>0.7936 <p>. |  <p>. <p>. | <p>0.3847 <p>0.4208|
+| SimpleViT-S    | Adam   |  0.8334  |   0.5880      | 0.4529|
+| SimplEsT-ViT-S | <p> Adam <p> Shampoo@25 | <p>0.7936 <p>. |  <p>0.4687 <p>0.5506 | <p>0.3847 <p>0.4208|
 * TAT setup: label smoothing + dropout  + weight decay.
 
 ### **SimpleViT setup:**
 |                |        | Cifar10 (/4)   | Cifar100 (/4) | TinyImageNet200 (/8) 
 | ---            | ---    | ---       | ---      | ---  |
-| SimpleViT-S    | Adam   |  0.8733   |   .      | 0.5152|
-| SimplEsT-ViT-S | <p> Adam <p> Shampoo@25 | <p>0.7894 <p>. |  <p>. <p>. | <p>0.3966 <p>0.449 |
+| SimpleViT-S    | Adam   |  0.8733   |   0.6439      | 0.5152|
+| SimplEsT-ViT-S | <p> Adam <p> Shampoo@25 | <p>0.7894 <p>. |  <p>0.4776 <p>0.5899 | <p>0.3966 <p>0.4490 |
 * SimpleViT setup: randaugment + mixup + weight decay.
 
 Training for three times longer with Adam matches the SimpleViT-S training loss. In the E-SPA paper, they showed results for training five times longer, but those were from large-scale experiments. However, achieving high validation accuracy is a different story ...
@@ -96,17 +96,6 @@ We also tried Newton's method with the tricks mentioned [here](https://twitter.c
 I want to thank KInIT for supporting the training costs of experiments. All experiments were done on RTX 3090.
 
 ## ImageNet:
-* A100 SXM4-80GB
-     *  batch size = 2048 + 512 + 64 + 32 (steps/epoch = 482)
-        *  Shampoo@1: step/s ~ 2.5463 
-        *  Adam: step/s ~ 0.7382
-        
-        We aim to adjust the frequency of the shampoo optimizer in such a manner that the speed of the shampoo optimizer is 1.25 times slower (TAT paper) than that of the Adam optimizer.
-        
-        $x * 2.5463 + (1-x) * 0.7382 \sim 1.25 => x \sim 0.1$.
-
-        Thus the frequency will be 100, Shampoo@100.
-
 
 
 VastAI:

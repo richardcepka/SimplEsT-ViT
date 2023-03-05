@@ -37,7 +37,7 @@ class Config:
     mixp_enabled: bool = True
     # data
     batch_size: int = 2048
-    data_name: str = "tiny"  # "10", "100", "tiny"
+    data_name: str = "tiny"  # "10", "100", "tiny", "imagenet"
     augment: bool = True
     num_classes: int = 200
     # model
@@ -244,7 +244,7 @@ def main(cfg):
     trainloader, testloader, traintestloader = get_data(cfg.batch_size, cfg.data_name, cfg.augment)
     
     ptdtype = {'float32': torch.float32, 'bfloat16': torch.bfloat16, 'float16': torch.float16}[cfg.dtype]
-    ctx = torch.autocast(enabled=cfg.mixp_enabled, device_type=cfg.device, dtype=ptdtype)
+    ctx = torch.autocast(enabled=cfg.mixp_enabled, device_type=cfg.device.split(":")[0], dtype=ptdtype)
     scaler = torch.cuda.amp.GradScaler(enabled=(cfg.dtype == 'float16'))
 
     model = build_model(cfg.model_name, cfg.model_cfg).to(cfg.device)

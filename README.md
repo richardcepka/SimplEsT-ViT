@@ -46,14 +46,14 @@ Simpl**E**s**T**-ViT (**E**-SPA + **T**AT) - vanilla transformer (without normal
 |                |        | Cifar10 (/4) | Cifar100 (/4) | TinyImageNet200 (/8) 
 | ---            | ---    | ---       | ---      | ---  |
 | SimpleViT-S    | Adam   |  0.8334  |   0.5880      | 0.4529|
-| SimplEsT-ViT-S | <p> Adam <p> Shampoo@25 | <p>0.7936 <p>. |  <p>0.4687 <p>0.5506 | <p>0.3847 <p>0.4208|
+| SimplEsT-ViT-S | <p> Adam <p> Shampoo@25 | <p>0.7936 <p>0.8243 |  <p>0.4687 <p>0.5506 | <p>0.3847 <p>0.4208|
 * TAT setup: label smoothing + dropout  + weight decay.
 
 ### **SimpleViT setup:**
 |                |        | Cifar10 (/4)   | Cifar100 (/4) | TinyImageNet200 (/8) 
 | ---            | ---    | ---       | ---      | ---  |
 | SimpleViT-S    | Adam   |  0.8733   |   0.6439      | 0.5152|
-| SimplEsT-ViT-S | <p> Adam <p> Shampoo@25 | <p>0.7894 <p>. |  <p>0.4776 <p>0.5899 | <p>0.3966 <p>0.4490 |
+| SimplEsT-ViT-S | <p> Adam <p> Shampoo@25 | <p>0.7894 <p>0.8496 |  <p>0.4776 <p>0.5899 | <p>0.3966 <p>0.4490 |
 * SimpleViT setup: randaugment + mixup + weight decay.
 
 Training for three times longer with Adam matches the SimpleViT-S training loss. In the E-SPA paper, they showed results for training five times longer, but those were from large-scale experiments. However, achieving high validation accuracy is a different story ...

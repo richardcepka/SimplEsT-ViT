@@ -6,6 +6,13 @@ Simpl**E**s**T**-ViT (**E**-SPA + **T**AT) - vanilla transformer (without normal
 * pytorch-nightly
 * wandb (optional)
 
+```bash
+sudo apt-get install build-essential
+```
+```bash
+ pip3 install numpy --pre torch torchvision --force-reinstall --index-url https://download.pytorch.org/whl/nightly/cu117
+```
+
 ## Data:
 
 ### TinyImageNet200:
@@ -98,15 +105,7 @@ We also tried Newton's method with the tricks mentioned [here](https://twitter.c
 I want to thank KInIT for supporting the training costs of experiments. All experiments were done on RTX 3090.
 
 ## ImageNet:
-
-
-VastAI:
-```bash
-sudo apt-get install build-essential
-```
-```bash
- pip3 install numpy --pre torch torchvision --force-reinstall --index-url https://download.pytorch.org/whl/nightly/cu117
-```
+We are currently working on ImageNet experiments. We will update the repo with the results soon.
 
 ## Referencies: 
 * E-SPA - [Deep Transformers without Shortcuts: Modifying Self-attention for Faithful Signal Propagation ](https://openreview.net/forum?id=NPrsUQgMjKK)

@@ -37,16 +37,16 @@ class Config:
     mixp_enabled: bool = True
     # data
     batch_size: int = 2048
-    data_name: str = "tiny"  # "10", "100", "tiny", "imagenet"
+    data_name: str = "cifar10"  # "cifar10", "cifar100", "imagenet200", "imagenet"
     augment: bool = True
-    num_classes: int = 200
+    num_classes: int = 10
     # model
     model_name: str = "espatat"  # "simplevit", "espatat"
     model_cfg: dict = field(
         default_factory=lambda: dict(
-            image_size=64,
-            patch_size=8, 
-            num_classes=200,
+            image_size=32,
+            patch_size=4, 
+            num_classes=10,
             dim=384,
             depth=12,
             heads=6,
@@ -80,13 +80,7 @@ class Config:
         return asdict(self)
 
 # Data
-def get_data(batch_size, data_name='10', augment=False, traintest_size=1_000) -> dict:
-    """
-        TinyImageNet: 
-            The dataset contains 110,000 images of 200 classes downsized 
-            to 64x64 colored images. Each class has 500 training images (100,000), 
-            50 validation images (10,000).
-    """
+def get_data(batch_size, data_name='cifar10', augment=False, traintest_size=1_000) -> dict:
     class DataTransformer(torch.utils.data.Dataset):
         def __init__(self, dataset, transform=None):
             self.dataset = dataset
@@ -106,28 +100,28 @@ def get_data(batch_size, data_name='10', augment=False, traintest_size=1_000) ->
         return datasets.ImageFolder(root=join_path(root, data_name, 'train' if train else 'val'), transform=transform)
     
     dataset = {
-        '10': datasets.CIFAR10, 
-        '100': datasets.CIFAR100, 
-        'tiny': partial(_get_image_folder, data_name='tiny-imagenet-200'),
+        'cifar10': datasets.CIFAR10, 
+        'cifar100': datasets.CIFAR100, 
+        'imagenet200': partial(_get_image_folder, data_name='tiny-imagenet-200'),
         'imagenet': partial(_get_image_folder, data_name='imagenet'),
 
     }[data_name]
     mean = {
-        '10': (0.4914, 0.4822, 0.4465), 
-        '100': (0.5071, 0.4867, 0.4408), 
-        'tiny': (0.4802, 0.4481, 0.3975), 
+        'cifar10': (0.4914, 0.4822, 0.4465), 
+        'cifar100': (0.5071, 0.4867, 0.4408), 
+        'imagenet200': (0.4802, 0.4481, 0.3975), 
         'imagenet': (0.485, 0.456, 0.406)
     }[data_name]
     std = {
-        '10': (0.2023, 0.1994, 0.2010), 
-        '100': (0.2675, 0.2565, 0.2761), 
-        'tiny': (0.2770, 0.2691, 0.2821), 
+        'cifar10': (0.2023, 0.1994, 0.2010), 
+        'cifar100': (0.2675, 0.2565, 0.2761), 
+        'imagenet200': (0.2770, 0.2691, 0.2821), 
         'imagenet': (0.229, 0.224, 0.225)
     }[data_name]
     size = {
-        '10': 32, 
-        '100': 32, 
-        'tiny': 64, 
+        'cifar10': 32, 
+        'cifar100': 32, 
+        'imagenet200': 64, 
         'imagenet': 224
     }[data_name]
     root = 'data'
@@ -154,7 +148,7 @@ def get_data(batch_size, data_name='10', augment=False, traintest_size=1_000) ->
 
     train_dataset = dataset(root=root, train=True, download=True)
     # create samples from train dataset to evaluate model on it during training (without augmentation, etc.)
-    traintest_data = torch.utils.data.Subset(train_dataset, torch.randperm(len(traintest_data))[:traintest_size])
+    traintest_data = torch.utils.data.Subset(train_dataset, torch.randperm(len(train_dataset))[:traintest_size])
 
     # Define trainloaders
     trainloader = torch.utils.data.DataLoader(
@@ -168,7 +162,7 @@ def get_data(batch_size, data_name='10', augment=False, traintest_size=1_000) ->
         batch_size=batch_size * 3 // 2, shuffle=False, pin_memory=True, num_workers=4
     )
     traintestloader = torch.utils.data.DataLoader(
-        DataTransformer(train_dataset, test_transform),
+        DataTransformer(traintest_data, test_transform),
         batch_size=batch_size * 3 // 2, shuffle=False, pin_memory=True, num_workers=4
     )
     
@@ -319,9 +313,8 @@ def main(cfg):
             if cfg.ema and (step % cfg.ema_step) == 0: compute_ema(model, ema_model, smoothing=0.99)
             # _________________________
             if (step % cfg.eval_step) == 0 or step == num_steps:
-                t_current = time.time() - t_all
                 metrics = estimate_metrics(ema_model if cfg.ema else model, [('val', testloader), ('train', traintestloader)], cfg.device, ctx)
-                metrics['time'] = t_current
+                metrics['time'] = time.time() - t_all
                 print(f"step {step}: train acc {metrics['train/acc']:.4f}, val acc {metrics['val/acc']:.4f}, time {metrics['time']:.2f}s")
                 if cfg.wandb_log: wandb.log(metrics, step=step)
                 if cfg.checkpointing:
@@ -331,8 +324,8 @@ def main(cfg):
                         'model_state_dict': (ema_model if cfg.ema else model).state_dict(),
                         'optimizer_state_dict': optimizer.state_dict(),
                         'val_acc': metrics['val/acc'],
-                        }, f'checkpoints/model{step}.pth'
-                    
+                        }, 
+                        f'checkpoints/model{step}.pth'
                     )
                     if cfg.wandb_log:
                         model_artifact = wandb.Artifact(f"model-checkpoint-{step}", type="model")

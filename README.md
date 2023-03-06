@@ -9,6 +9,8 @@ Simpl**E**s**T**-ViT (**E**-SPA + **T**AT) - vanilla transformer (without normal
 ## Data:
 
 ### TinyImageNet200:
+The dataset contains 110,000 images of 200 classes downsized to 64x64 colored images. Each class has 500 training images (100,000), 50 validation images (10,000).
+
 1. Run downloand_tiny_imagenet.py
     ```bash
     python3 downloand_tiny_imagenet.py -r data

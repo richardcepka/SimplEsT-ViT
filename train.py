@@ -28,6 +28,7 @@ class Config:
     epochs: int = 90
     num_warmup_steps: int = 75
     eval_step: int = 48 * 5
+    dirty_loss_size: int = 128
     grad_clip: float = 1.0
     lb_smooth: float = 0.  # [0.0, 1.0]
     checkpointing: bool = False
@@ -39,14 +40,14 @@ class Config:
     batch_size: int = 2048
     data_name: str = "cifar10"  # "cifar10", "cifar100", "imagenet200", "imagenet"
     augment: bool = True
-    num_classes: int = 10
+    num_classes: int = 10  # 10, 100, 200, 1000
     # model
     model_name: str = "espatat"  # "simplevit", "espatat"
     model_cfg: dict = field(
         default_factory=lambda: dict(
-            image_size=32,
-            patch_size=4, 
-            num_classes=10,
+            image_size=32,  # 32, 32, 64, 224
+            patch_size=4,   # 4, 4, 8, 16
+            num_classes=10,  # 10, 100, 200, 1000
             dim=384,
             depth=12,
             heads=6,
@@ -74,7 +75,7 @@ class Config:
     ema: bool = False
     ema_step: int = 5
     sam: bool = False
-    sam_step: int = 1  # if sam_step=10 then rho=0.5
+    sam_step: int = 1  # if sam_step=10 then rho=0.5, set in build_optimizer function :( 
 
     def to_dict(self):
         return asdict(self)
@@ -278,6 +279,7 @@ def main(cfg):
     step = 0
     t_all = time.time()
     for epoch in range(1, cfg.epochs + 1):
+        running_loss = 0
         t_epoch = time.time() 
         for x, y in trainloader:
             step += 1
@@ -299,15 +301,20 @@ def main(cfg):
             if isinstance(optimizer, SAM):
                 step_type = ("first", "second") if (step % cfg.sam_step) == 0 else ("skip",)
                 for s in step_type:
-                    fw_bw()
+                    _loss = fw_bw()
                     scaler.step(optimizer, step_type=s)
                     scaler.update()
             else:
-                fw_bw()
+                _loss = fw_bw()
                 scaler.step(optimizer)
                 scaler.update()
-            
+
+            running_loss +=  _loss.item()
             scheduler.step()        
+            # _________________________
+            if (step % cfg.dirty_loss_size) == 0: 
+                print(f"step {step}: dirty train loss {running_loss/cfg.dirty_loss_size:.4f}") 
+                running_loss = 0
             # _________________________
 
             if cfg.ema and (step % cfg.ema_step) == 0: compute_ema(model, ema_model, smoothing=0.99)

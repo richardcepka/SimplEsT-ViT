@@ -80,14 +80,29 @@ class Config:
         return asdict(self)
 
 # Data
-def get_data(batch_size, data_name='10', augment=False, traintest_size=10_000) -> dict:
+def get_data(batch_size, data_name='10', augment=False, traintest_size=1_000) -> dict:
     """
         TinyImageNet: 
             The dataset contains 110,000 images of 200 classes downsized 
             to 64x64 colored images. Each class has 500 training images (100,000), 
             50 validation images (10,000).
     """
-    def _get_image_folder(data_name, root, train, download, transform):
+    class DataTransformer(torch.utils.data.Dataset):
+        def __init__(self, dataset, transform=None):
+            self.dataset = dataset
+            self.transform = transform
+            
+        def __getitem__(self, index):
+            x, y = self.dataset[index]
+            if self.transform:
+                x = self.transform(x)
+            return x, y
+            
+        def __len__(self):
+            return len(self.dataset)
+
+            
+    def _get_image_folder(data_name, root, train, download, transform=None):
         return datasets.ImageFolder(root=join_path(root, data_name, 'train' if train else 'val'), transform=transform)
     
     dataset = {
@@ -137,21 +152,24 @@ def get_data(batch_size, data_name='10', augment=False, traintest_size=10_000) -
     train_transform = transforms.Compose(t_augment_list + t_esential_list)
     test_transform = transforms.Compose(t_eval_list + t_esential_list)
 
+    train_dataset = dataset(root=root, train=True, download=True)
+    # create samples from train dataset to evaluate model on it during training (without augmentation, etc.)
+    traintest_data = torch.utils.data.Subset(train_dataset, torch.randperm(len(traintest_data))[:traintest_size])
+
     # Define trainloaders
     trainloader = torch.utils.data.DataLoader(
-        dataset(root=root, train=True, download=True, transform=train_transform), 
+        DataTransformer(train_dataset, train_transform), 
         batch_size=batch_size, shuffle=True, pin_memory=True, num_workers=4, drop_last=True
     )
     # prepare testloader and traintestloader (samples from training set)
+    # increase batch size by  3 // 2
     testloader = torch.utils.data.DataLoader(
         dataset(root=root, train=False, download=True, transform=test_transform),
-        batch_size=batch_size, shuffle=False, pin_memory=True, num_workers=4
+        batch_size=batch_size * 3 // 2, shuffle=False, pin_memory=True, num_workers=4
     )
-    traintest_data = dataset(root=root, train=True, download=False, transform=test_transform)
-    traintest_data = torch.utils.data.Subset(traintest_data, torch.randperm(len(traintest_data))[:traintest_size])
     traintestloader = torch.utils.data.DataLoader(
-        traintest_data,
-        batch_size=batch_size, shuffle=False, pin_memory=True, num_workers=4
+        DataTransformer(train_dataset, test_transform),
+        batch_size=batch_size * 3 // 2, shuffle=False, pin_memory=True, num_workers=4
     )
     
     return trainloader, testloader, traintestloader
@@ -168,7 +186,7 @@ def build_optimizer(model, name, opt_cfg: dict, sam=False):
     if name == "adam":
         optimizer = torch.optim.Adam(optim_groups, **opt_cfg, fused=True)
     elif name == "shampoo":
-        return Shampoo(
+        optimizer = Shampoo(
             optim_groups, **opt_cfg,
             betas=(0.9, 0.999),
             max_preconditioner_dim=8192,
@@ -280,7 +298,8 @@ def main(cfg):
                 scaler.scale(loss).backward()
 
                 if cfg.grad_clip > 0:
-                    torch.nn.utils.clip_grad_norm_(model.parameters(), cfg.grad_clip * scaler.get_scale()) 
+                    scaler.unscale_(optimizer)
+                    torch.nn.utils.clip_grad_norm_(model.parameters(), cfg.grad_clip) 
                 return loss
             
             if isinstance(optimizer, SAM):
@@ -301,7 +320,7 @@ def main(cfg):
             # _________________________
             if (step % cfg.eval_step) == 0 or step == num_steps:
                 t_current = time.time() - t_all
-                metrics = estimate_metrics(ema_model if cfg.ema else model, [('train', traintestloader), ('val', testloader)], cfg.device, ctx)
+                metrics = estimate_metrics(ema_model if cfg.ema else model, [('val', testloader), ('train', traintestloader)], cfg.device, ctx)
                 metrics['time'] = t_current
                 print(f"step {step}: train acc {metrics['train/acc']:.4f}, val acc {metrics['val/acc']:.4f}, time {metrics['time']:.2f}s")
                 if cfg.wandb_log: wandb.log(metrics, step=step)

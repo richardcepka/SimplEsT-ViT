@@ -5,6 +5,7 @@ import time
 from dataclasses import asdict, dataclass, field
 from functools import partial
 from os.path import join as join_path
+from statistics import median
 
 import torch
 import torch.nn.functional as F
@@ -28,7 +29,7 @@ class Config:
     epochs: int = 90
     num_warmup_steps: int = 75
     eval_step: int = 48 * 5
-    dirty_loss_size: int = 128
+    dirty_loss_window_size: int = 128
     grad_clip: float = 1.0
     lb_smooth: float = 0.  # [0.0, 1.0]
     checkpointing: bool = False
@@ -279,7 +280,7 @@ def main(cfg):
     step = 0
     t_all = time.time()
     for epoch in range(1, cfg.epochs + 1):
-        running_loss = 0
+        dirt_loss = []
         t_epoch = time.time() 
         for x, y in trainloader:
             step += 1
@@ -309,15 +310,15 @@ def main(cfg):
                 scaler.step(optimizer)
                 scaler.update()
 
-            running_loss +=  _loss.item()
+            dirt_loss.append(_loss.item())
             scheduler.step()        
             # _________________________
-            if (step % cfg.dirty_loss_size) == 0: 
-                log_loss = running_loss/cfg.dirty_loss_size
-                log_lr = scheduler.get_last_lr()[0]
-                print(f"step {step}: dirty train loss {log_loss:.4f}") 
-                if cfg.wandb_log: wandb.log({"train/Dloss": log_loss, "lr": log_lr}, step=step)
-                running_loss = 0
+            if (step % cfg.dirty_loss_window_size) == 0: 
+                _median = median(dirt_loss)
+                print(f"step {step}: dirty train loss {_median:.4f}") 
+                if cfg.wandb_log:
+                    wandb.log({f"train/dirty-loss-media{cfg.dirty_loss_window_size}": _median, "lr": scheduler.get_last_lr()[0]}, step=step)
+                dirt_loss = []
             # _________________________
 
             if cfg.ema and (step % cfg.ema_step) == 0: compute_ema(model, ema_model, smoothing=0.99)

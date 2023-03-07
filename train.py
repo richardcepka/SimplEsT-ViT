@@ -76,7 +76,8 @@ class Config:
     ema: bool = False
     ema_step: int = 5
     sam: bool = False
-    sam_step: int = 1  # if sam_step=10 then rho=0.5, set in build_optimizer function :( 
+    sam_step: int = 1  
+    sam_rho: float = 0.05  # if sam_step=10 then rho=0.5
 
     def to_dict(self):
         return asdict(self)
@@ -171,7 +172,7 @@ def get_data(batch_size, data_name='cifar10', augment=False, traintest_size=1_00
     return trainloader, testloader, traintestloader
 
 # Optimizer
-def build_optimizer(model, name, opt_cfg: dict, sam=False):
+def build_optimizer(model, name, opt_cfg: dict, sam=False, sam_rho=0.05):
     param_optimizer = list(model.named_parameters())
     no_decay = ["bias", "LayerNorm.bias", "LayerNorm.weight"]
     optim_groups = [
@@ -191,7 +192,7 @@ def build_optimizer(model, name, opt_cfg: dict, sam=False):
             grafting_epsilon=1e-08,
             grafting_beta2=0.999
         )
-    return SAM(optimizer, rho=0.05) if sam else optimizer 
+    return SAM(optimizer, rho=sam_rho) if sam else optimizer 
     
 def get_cosine_schedule_with_warmup(optimizer, num_warmup_steps, num_training_steps, num_cycles=0.5, last_epoch=-1):
     def lr_lambda(current_step):
@@ -235,8 +236,8 @@ def estimate_metrics(model, loaders, device, ctx):
                 loss = F.cross_entropy(output, y)
             running_loss += loss.item()
             running_acc += acc(output, y).item()
-        metrics[f'{split}/loss'] = running_loss/len(loader)
-        metrics[f'{split}/acc'] = running_acc/len(loader)
+        metrics[f'{split}/loss'] = running_loss / len(loader)
+        metrics[f'{split}/acc'] = running_acc / len(loader)
     model.train()
     return metrics
 
@@ -264,7 +265,7 @@ def main(cfg):
     model = build_model(cfg.model_name, cfg.model_cfg).to(cfg.device)
     if cfg.ema: ema_model = copy.deepcopy(model)
 
-    optimizer = build_optimizer(model, cfg.opt_name, cfg.opt_cfg, sam=cfg.sam)
+    optimizer = build_optimizer(model, cfg.opt_name, cfg.opt_cfg, sam=cfg.sam, sam_rho=cfg.sam_rho)
     num_steps = get_number_of_steps(trainloader, cfg.epochs)
     scheduler = get_cosine_schedule_with_warmup(optimizer, cfg.num_warmup_steps, num_steps, num_cycles=0.5, last_epoch=-1)
 

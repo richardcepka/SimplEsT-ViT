@@ -28,8 +28,6 @@ parameters:
           values: [0.0007, 0.0005]
         weight_decay:
           values: [0.00005, 0]
-        epsilon:
-          value: 0.000000000001
         precondition_frequency:
           value: 25
         start_preconditioning_step:

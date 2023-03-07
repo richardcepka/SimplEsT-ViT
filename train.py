@@ -66,7 +66,6 @@ class Config:
         default_factory=lambda: dict(
             lr=0.0007,  # 0.0005
             weight_decay=0.,  # 0.00005
-            epsilon=1e-12,  # 1e-6
             precondition_frequency=25,
             start_preconditioning_step=25,
         )
@@ -190,7 +189,8 @@ def build_optimizer(model, name, opt_cfg: dict, sam=False, sam_rho=0.05):
             use_decoupled_weight_decay=False,
             grafting_type=GraftingType.ADAM,
             grafting_epsilon=1e-08,
-            grafting_beta2=0.999
+            grafting_beta2=0.999,
+            epsilon=1e-12
         )
     return SAM(optimizer, rho=sam_rho) if sam else optimizer 
     
@@ -250,8 +250,8 @@ def main(cfg):
         wandb.init(project=cfg.wandb_project, name=cfg.wandb_run_name, config=cfg.to_dict())
         cfg = wandb.config
 
-    torch.backends.cuda.matmul.allow_tf32 = True # allow tf32 on matmul
-    torch.backends.cudnn.allow_tf32 = True # allow tf32 on cudnn
+    torch.backends.cuda.matmul.allow_tf32 = True  # allow tf32 on matmul
+    torch.backends.cudnn.allow_tf32 = True  # allow tf32 on cudnn
     set_seed(cfg.seed)
 
     if cfg.checkpointing and (not os.path.exists("checkpoints")): os.makedirs("checkpoints")

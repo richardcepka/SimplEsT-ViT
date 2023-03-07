@@ -32,7 +32,7 @@ sudo apt-get install build-essential
 ## Data:
 
 ### TinyImageNet200:
-The dataset contains 110,000 images of 200 classes downsized to 64x64 colored images. Each class has 500 training images (100,000), 50 validation images (10,000).
+The dataset contains 110 000 images of 200 classes downsized to 64x64 colored images. Each class has 500 training images (100 000), 50 validation images (10 000).
 
 1. Run downloand_tiny_imagenet.py
     ```bash
@@ -97,10 +97,10 @@ One block of SimplEsT-ViT consists of one attention layer (without projection) a
 * Epochs: 90
 * WarmUp: 75 steps
 * Batch size: 2048
-* Gradient cliping: 1.
+* Gradient cliping: 1 
 * Learning scheduler: Cosine with linear wurmup
-* Dropout: {0., 0.2}
-* Weight decay: {0., 0.00005}
+* Dropout: {0, 0.2}
+* Weight decay: {0, 0.00005}
 
 * Optimizer: 
     * Adam, Learning rate:

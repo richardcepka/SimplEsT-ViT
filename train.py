@@ -313,7 +313,10 @@ def main(cfg):
             scheduler.step()        
             # _________________________
             if (step % cfg.dirty_loss_size) == 0: 
-                print(f"step {step}: dirty train loss {running_loss/cfg.dirty_loss_size:.4f}") 
+                log_loss = running_loss/cfg.dirty_loss_size
+                log_lr = scheduler.get_last_lr()[0]
+                print(f"step {step}: dirty train loss {log_loss:.4f}") 
+                if cfg.wandb_log: wandb.log({"train/Dloss": log_loss, "lr": log_lr}, step=step)
                 running_loss = 0
             # _________________________
 
@@ -330,6 +333,7 @@ def main(cfg):
                         'epoch': epoch,
                         'model_state_dict': (ema_model if cfg.ema else model).state_dict(),
                         'optimizer_state_dict': optimizer.state_dict(),
+                        'scheduler_state_dict': scheduler.state_dict(),
                         'val_acc': metrics['val/acc'],
                         }, 
                         f'checkpoints/model{step}.pth'

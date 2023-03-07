@@ -69,14 +69,14 @@ The dataset contains 110 000 images of 200 classes downsized to 64x64 colored im
 
 ### **TAT setup:**
 |                |        | Cifar10 (/4) | Cifar100 (/4) | TinyImageNet200 (/8) 
-| ---            | ---    | ---       | ---      | ---  |
+| :---            | :---    | :---:       | :---:      | :---: |
 | SimpleViT-S    | Adam   |  0.8334  |   0.5880      | 0.4529|
 | SimplEsT-ViT-S | <p> Adam <p> Shampoo@25 | <p>0.7936 <p>0.8243 |  <p>0.4687 <p>0.5506 | <p>0.3847 <p>0.4208|
 * TAT setup: label smoothing + dropout  + weight decay.
 
 ### **SimpleViT setup:**
 |                |        | Cifar10 (/4)   | Cifar100 (/4) | TinyImageNet200 (/8) 
-| ---            | ---    | ---       | ---      | ---  |
+| :---            | :---    | :---:       | :---:      | :---: |
 | SimpleViT-S    | Adam   |  0.8733   |   0.6439      | 0.5152|
 | SimplEsT-ViT-S | <p> Adam <p> Shampoo@25 | <p>0.7894 <p>0.8496 |  <p>0.4776 <p>0.5899 | <p>0.3966 <p>0.4490 |
 * SimpleViT setup: randaugment + mixup + weight decay.
@@ -121,6 +121,12 @@ I want to thank KInIT for supporting the training costs of experiments. All expe
 
 ## ImageNet Results:
 We are currently working on ImageNet experiments. We will update the repo with the results soon.
+
+|                   |    90 epoch    | 
+| :---              | :---:          | 
+| SimpleViT-S/16    |    76.5        |  
+| Resnet50 TAT      |    74.6        |  
+| SimplEsT-ViT-S/16 |    .           |    
 
 ## References: 
 * E-SPA - [Deep Transformers without Shortcuts: Modifying Self-attention for Faithful Signal Propagation ](https://openreview.net/forum?id=NPrsUQgMjKK)

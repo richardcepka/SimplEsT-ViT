@@ -125,7 +125,7 @@ We are currently working on ImageNet experiments. We will update the repo with t
 |                   |    90 epoch    | 
 | :---              | :---:          | 
 | SimpleViT-S/16    |    76.5        |  
-| Resnet50 TAT      |    74.6        |  
+| ResNet50 TAT      |    74.6        |  
 | SimplEsT-ViT-S/16 |    .           |    
 
 ## References: 

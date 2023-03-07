@@ -2,8 +2,24 @@
 # SimplEsT-ViT
 Simpl**E**s**T**-ViT (**E**-SPA + **T**AT) - vanilla transformer (without normalizations and skip connections), E-SPA (gama = 0.005) + TAT (eta = 0.9).
 
+## Table of Contents:
+1. [Dependencies](#Dependencies)
+2. [Data](#Data)
+    1. [TinyImageNet200](#TinyImageNet200)
+    2. [ImageNet](#ImageNet)
+3. [Results](#Results)
+    1. [TAT setup](#TAT-setup)
+    2. [SimpleViT setup](#SimpleViT-setup)
+    3. [Trainability of deeper SimplEsT-ViT](#Trainability-of-deeper-SimplEsT-ViT)
+4. [Experiments setup](#Experiments-setup)
+    1. [Shampoo implementation discusion](#Shampoo-implementation-discusion)
+    2. [Acknowledgment](#Acknowledgment)
+5. [ImageNet](#ImageNet)
+6. [References](#References)
+
+
 ## Dependencies:
-* pytorch-nightly
+* pytorch 2.0
 * wandb (optional)
 
 ```bash
@@ -92,9 +108,8 @@ One block of SimplEsT-ViT consists of one attention layer (without projection) a
         * SimpleViT - 0.001
     * Shampoo, Learning rate:
         * SimplEsT-ViT - {0.0007, 0.0005} 
-        
 
-It would be beneficial to perform a wider range of experiments to determine the optimal learning rate and weight decay values, particularly for weight decay. This is because normalization through [LN makes the network scale invariant](https://arxiv.org/pdf/1607.06450.pdf), resulting in a [different behavior for weight decay](https://www.cs.toronto.edu/~rgrosse/courses/csc2541_2022/readings/L05_normalization.pdf) compared to networks without normalization. We hypothesize that weight decay should be much smaller for SimplEsT-ViT than for SimpleViT.
+It would be beneficial to perform a wider range of experiments to determine the optimal learning rate and weight decay values, particularly for weight decay. This is especially relevant given that the normalization achieved through [LN makes the network scale-invariant](https://arxiv.org/pdf/1607.06450.pdf), resulting in a weight decay [exhibiting distinct behavior](https://www.cs.toronto.edu/~rgrosse/courses/csc2541_2022/readings/L05_normalization.pdf) compared to networks without normalization. We hypothesize that weight decay should be considerably lower than for SimpleViT.
 
 ### Shampoo implementation discusion:
 We use the same [implementation for Shampoo](https://github.com/facebookresearch/optimizers/tree/main/distributed_shampoo) (except [one small change](https://github.com/richardcepka/SimplEsT-ViT/commit/de7608ce3f3ea1031f326a54e4aba9d83a2ffa41)) as in the Cramming paper, where they show no benefits. They hypothesize that it may be due to [improper implementation](https://twitter.com/_arohan_/status/1608577721818546176). However, based on my understanding, the discussion is about the Newton iteration method, which is not used as default in the Shampoo implementation we use (default is eigendecomposition).

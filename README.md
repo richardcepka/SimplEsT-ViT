@@ -129,5 +129,5 @@ We are currently working on ImageNet experiments. We will update the repo with t
 * SimpleViT - [Better plain ViT baselines for ImageNet-1k](https://arxiv.org/abs/2205.01580)
 * Cramming - [Cramming: Training a Language Model on a Single GPU in One Day](https://arxiv.org/abs/2212.14034)
 * Shampoo - [Shampoo: Preconditioned Stochastic Tensor Optimization](https://arxiv.org/abs/1802.09568), [Scalable Second Order Optimization for Deep Learning](https://arxiv.org/abs/2002.09018)
-            
+* Adam - [Adam: A Method for Stochastic Optimization](https://arxiv.org/abs/1412.6980)
 

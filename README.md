@@ -4,18 +4,18 @@ Simpl**E**s**T**-ViT (**E**-SPA + **T**AT) - vanilla transformer (without normal
 
 ## Table of Contents:
 1. [Dependencies](#Dependencies)
-2. [Data](#Data:)
-    1. [TinyImageNet200](#TinyImageNet200:)
-    2. [ImageNet](#ImageNet:)
-3. [Results](#Results:)
-    1. [TAT setup](#TAT-setup:)
-    2. [SimpleViT setup](#SimpleViT-setup:)
-    3. [Trainability of deeper SimplEsT-ViT](#Trainability-of-deeper-SimplEsT-ViT:)
-4. [Experiments setup](#Experiments-setup:)
-    1. [Shampoo implementation discusion](#Shampoo-implementation-discusion:)
-    2. [Acknowledgment](#Acknowledgment:)
-5. [ImageNet Results](#ImageNet-Results:)
-6. [References](#References:)
+2. [Data](#Data)
+    1. [TinyImageNet200](#TinyImageNet200)
+    2. [ImageNet](#ImageNet)
+3. [Results](#Results)
+    1. [TAT setup](#TAT-setup)
+    2. [SimpleViT setup](#SimpleViT-setup)
+    3. [Trainability of deeper SimplEsT-ViT](#Trainability-of-deeper-SimplEsT-ViT)
+4. [Experiments setup](#Experiments-setup)
+    1. [Shampoo implementation discusion](#Shampoo-implementation-discusion)
+    2. [Acknowledgment](#Acknowledgment)
+5. [ImageNet Results](#ImageNet-Results)
+6. [References](#References)
 
 
 ## Dependencies:

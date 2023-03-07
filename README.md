@@ -3,19 +3,19 @@
 Simpl**E**s**T**-ViT (**E**-SPA + **T**AT) - vanilla transformer (without normalizations and skip connections), E-SPA (gama = 0.005) + TAT (eta = 0.9).
 
 ## Table of Contents:
-1. [Dependencies](#Dependencies)
-2. [Data](#Data)
-    1. [TinyImageNet200](#TinyImageNet200)
-    2. [ImageNet](#ImageNet)
-3. [Results](#Results)
-    1. [TAT setup](#TAT-setup)
-    2. [SimpleViT setup](#SimpleViT-setup)
-    3. [Trainability of deeper SimplEsT-ViT](#Trainability-of-deeper-SimplEsT-ViT)
-4. [Experiments setup](#Experiments-setup)
-    1. [Shampoo implementation discusion](#Shampoo-implementation-discusion)
-    2. [Acknowledgment](#Acknowledgment)
-5. [ImageNet](#ImageNet)
-6. [References](#References)
+1. [Dependencies](##Dependencies)
+2. [Data](##Data)
+    1. [TinyImageNet200](###TinyImageNet200)
+    2. [ImageNet](###ImageNet)
+3. [Results](##Results)
+    1. [TAT setup](###TAT-setup)
+    2. [SimpleViT setup](###SimpleViT-setup)
+    3. [Trainability of deeper SimplEsT-ViT](###Trainability-of-deeper-SimplEsT-ViT)
+4. [Experiments setup](##Experiments-setup)
+    1. [Shampoo implementation discusion](###Shampoo-implementation-discusion)
+    2. [Acknowledgment](###Acknowledgment)
+5. [ImageNet](##ImageNet)
+6. [References](##References)
 
 
 ## Dependencies:
@@ -122,9 +122,12 @@ I want to thank KInIT for supporting the training costs of experiments. All expe
 ## ImageNet:
 We are currently working on ImageNet experiments. We will update the repo with the results soon.
 
-## Referencies: 
+## References: 
 * E-SPA - [Deep Transformers without Shortcuts: Modifying Self-attention for Faithful Signal Propagation ](https://openreview.net/forum?id=NPrsUQgMjKK)
 * TAT - [Deep Learning without Shortcuts: Shaping the Kernel with Tailored Rectifiers](https://arxiv.org/abs/2203.08120)
 * DKS - [Rapid training of deep neural networks without skip connections or normalization layers using Deep Kernel Shaping](https://arxiv.org/abs/2110.01765)
 * SimpleViT - [Better plain ViT baselines for ImageNet-1k](https://arxiv.org/abs/2205.01580)
 * Cramming - [Cramming: Training a Language Model on a Single GPU in One Day](https://arxiv.org/abs/2212.14034)
+* Shampoo - [Shampoo: Preconditioned Stochastic Tensor Optimization](https://arxiv.org/abs/1802.09568), [Scalable Second Order Optimization for Deep Learning](https://arxiv.org/abs/2002.09018)
+            
+

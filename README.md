@@ -3,19 +3,19 @@
 Simpl**E**s**T**-ViT (**E**-SPA + **T**AT) - vanilla transformer (without normalizations and skip connections), E-SPA (gama = 0.005) + TAT (eta = 0.9).
 
 ## Table of Contents:
-1. [Dependencies](##Dependencies)
-2. [Data](##Data)
-    1. [TinyImageNet200](###TinyImageNet200)
-    2. [ImageNet](###ImageNet)
-3. [Results](##Results)
-    1. [TAT setup](###TAT-setup)
-    2. [SimpleViT setup](###SimpleViT-setup)
-    3. [Trainability of deeper SimplEsT-ViT](###Trainability-of-deeper-SimplEsT-ViT)
-4. [Experiments setup](##Experiments-setup)
-    1. [Shampoo implementation discusion](###Shampoo-implementation-discusion)
-    2. [Acknowledgment](###Acknowledgment)
-5. [ImageNet](##ImageNet)
-6. [References](##References)
+1. [Dependencies](#Dependencies)
+2. [Data](#Data:)
+    1. [TinyImageNet200](#TinyImageNet200:)
+    2. [ImageNet](#ImageNet:)
+3. [Results](#Results:)
+    1. [TAT setup](#TAT-setup:)
+    2. [SimpleViT setup](#SimpleViT-setup:)
+    3. [Trainability of deeper SimplEsT-ViT](#Trainability-of-deeper-SimplEsT-ViT:)
+4. [Experiments setup](#Experiments-setup:)
+    1. [Shampoo implementation discusion](#Shampoo-implementation-discusion:)
+    2. [Acknowledgment](#Acknowledgment:)
+5. [ImageNet Results](#ImageNet-Results:)
+6. [References](#References:)
 
 
 ## Dependencies:
@@ -119,7 +119,7 @@ We also tried Newton's method with the tricks mentioned [here](https://twitter.c
 ### Acknowledgment: 
 I want to thank KInIT for supporting the training costs of experiments. All experiments were done on RTX 3090.
 
-## ImageNet:
+## ImageNet Results:
 We are currently working on ImageNet experiments. We will update the repo with the results soon.
 
 ## References: 

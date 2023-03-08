@@ -35,7 +35,6 @@ opt_name = "shampoo"  # "adam"
 opt_cfg = dict(
     lr=0.0007,
     weight_decay=0.,
-    epsilon=1e-6,
     precondition_frequency=1,
     start_preconditioning_step=10
 )

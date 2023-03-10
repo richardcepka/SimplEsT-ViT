@@ -3,18 +3,32 @@ import math
 import os
 import time
 from dataclasses import asdict, dataclass, field
-from functools import partial
 from os.path import join as join_path
 from statistics import median
 
+import numpy as np
 import torch
 import torch.nn.functional as F
-from torchvision import datasets, transforms
 
 from models import SimplEsTViT, SimpleViT
 from shampoo.shampoo import Shampoo
 from shampoo.shampoo_utils import GraftingType
-from tricks import SAM, compute_ema, mix_mixup
+from tricks import SAM, compute_ema
+
+from ffcv.loader import Loader, OrderOption
+from ffcv.transforms import (
+    ToTensor, ToDevice, Squeeze, NormalizeImage, 
+    RandomHorizontalFlip, ToTorchImage
+)
+from ffcv.fields.rgb_image import (
+    CenterCropRGBImageDecoder, 
+    RandomResizedCropRGBImageDecoder
+)
+from ffcv.fields.basics import IntDecoder
+
+
+IMAGENET_MEAN = np.array([0.485, 0.456, 0.406]) * 255
+IMAGENET_STD = np.array([0.229, 0.224, 0.225]) * 255
 
 
 # Config
@@ -22,38 +36,36 @@ from tricks import SAM, compute_ema, mix_mixup
 class Config:
     seed: int = 3407
     # wandb logging
-    wandb_log: bool = False  # disabled by default
+    wandb_log: bool = True  # disabled by default
     wandb_project: str = 'nanovit'
-    wandb_run_name: str = ''
+    wandb_run_name: str = 'imagenet/shampoo/TAT-setup'
     # training
     epochs: int = 90
-    num_warmup_steps: int = 75
-    eval_step: int = 48 * 5
+    num_warmup_steps: int = 10_000
+    eval_step: int = 1251 * 3
     dirty_loss_window_size: int = 128
     grad_clip: float = 1.0
-    lb_smooth: float = 0.  # [0.0, 1.0]
-    checkpointing: bool = False
+    lb_smooth: float = 0.1  # [0.0, 1.0]
+    checkpointing: bool = True
     # mixed precision
     device: str = "cuda"
     dtype: str = "bfloat16"
     mixp_enabled: bool = True
     # data
-    batch_size: int = 2048
-    data_name: str = "cifar10"  # "cifar10", "cifar100", "imagenet200", "imagenet"
-    augment: bool = True
-    num_classes: int = 10  # 10, 100, 200, 1000
+    batch_size: int = 1024
+    n_workers: int = 16
     # model
     model_name: str = "espatat"  # "simplevit", "espatat"
     model_cfg: dict = field(
         default_factory=lambda: dict(
-            image_size=32,  # 32, 32, 64, 224
-            patch_size=4,   # 4, 4, 8, 16
-            num_classes=10,  # 10, 100, 200, 1000
+            image_size=224,
+            patch_size=16,
+            num_classes=1000,
             dim=384,
             depth=12,
             heads=6,
             mlp_dim=384 * 4,
-            drop_p=0.,
+            drop_p=0.2,
             c_val_0_target=0.9,  # TAT 
             gamma_max_depth=0.005,  # E-SPA
             att_bias=True,
@@ -65,13 +77,12 @@ class Config:
     opt_cfg: dict = field(
         default_factory=lambda: dict(
             lr=0.0007,  # 0.0005
-            weight_decay=0.,  # 0.00005
+            weight_decay=0.0005,  # 0.00005
             precondition_frequency=25,
             start_preconditioning_step=25,
         )
     ) 
     # tricks
-    mixup: bool = False
     ema: bool = False
     ema_step: int = 5
     sam: bool = False
@@ -82,93 +93,67 @@ class Config:
         return asdict(self)
 
 # Data
-def get_data(batch_size, data_name='cifar10', augment=False, traintest_size=1_000) -> dict:
-    class DataTransformer(torch.utils.data.Dataset):
-        def __init__(self, dataset, transform=None):
-            self.dataset = dataset
-            self.transform = transform
-            
-        def __getitem__(self, index):
-            x, y = self.dataset[index]
-            if self.transform:
-                x = self.transform(x)
-            return x, y
-            
-        def __len__(self):
-            return len(self.dataset)
-
-            
-    def _get_image_folder(data_name, root, train, download, transform=None):
-        return datasets.ImageFolder(root=join_path(root, data_name, 'train' if train else 'val'), transform=transform)
-    
-    dataset = {
-        'cifar10': datasets.CIFAR10, 
-        'cifar100': datasets.CIFAR100, 
-        'imagenet200': partial(_get_image_folder, data_name='tiny-imagenet-200'),
-        'imagenet': partial(_get_image_folder, data_name='imagenet'),
-
-    }[data_name]
-    mean = {
-        'cifar10': (0.4914, 0.4822, 0.4465), 
-        'cifar100': (0.5071, 0.4867, 0.4408), 
-        'imagenet200': (0.4802, 0.4481, 0.3975), 
-        'imagenet': (0.485, 0.456, 0.406)
-    }[data_name]
-    std = {
-        'cifar10': (0.2023, 0.1994, 0.2010), 
-        'cifar100': (0.2675, 0.2565, 0.2761), 
-        'imagenet200': (0.2770, 0.2691, 0.2821), 
-        'imagenet': (0.229, 0.224, 0.225)
-    }[data_name]
-    size = {
-        'cifar10': 32, 
-        'cifar100': 32, 
-        'imagenet200': 64, 
-        'imagenet': 224
-    }[data_name]
-    root = 'data'
-    
-    # Define transforms
-    t_augment_list = [] if not augment else [
-        transforms.RandomCrop(size=size, padding=4) if data_name != 'imagenet' else transforms.RandomResizedCrop(size),
-        transforms.RandomHorizontalFlip(),
-        transforms.RandAugment(num_ops=2, magnitude=10)
+def create_train_loader(path, batch_size, in_memory, dtype, device, num_workers=16):
+    res_tuple = (224, 224)
+    image_pipeline = [
+        RandomResizedCropRGBImageDecoder(res_tuple),
+        RandomHorizontalFlip(),
+        ToTensor(),
+        ToDevice(device, non_blocking=True),
+        ToTorchImage(),
+        NormalizeImage(IMAGENET_MEAN, IMAGENET_STD, dtype)
     ]
 
-    t_eval_list = [] if data_name != 'imagenet' else [
-        transforms.Resize(256), 
-        transforms.CenterCrop(size)
+    label_pipeline = [
+        IntDecoder(),
+        ToTensor(),
+        Squeeze(),
+        ToDevice(device, non_blocking=True)
     ]
 
-    t_esential_list = [
-        transforms.ToTensor(),
-        transforms.Normalize(mean, std),
+    order = OrderOption.RANDOM if in_memory else OrderOption.QUASI_RANDOM
+    loader = Loader(path,
+                    batch_size=batch_size,
+                    num_workers=num_workers,
+                    order=order,
+                    os_cache=in_memory,
+                    drop_last=True,
+                    pipelines={
+                        'image': image_pipeline,
+                        'label': label_pipeline
+                    })
+
+    return loader
+
+def create_val_loader(path, batch_size, dtype, device, num_workers=16):
+    _res_tuple = (224, 224)
+    _ratio = 224 / 256
+    cropper = CenterCropRGBImageDecoder(_res_tuple, ratio=_ratio)
+    image_pipeline = [
+        cropper,
+        ToTensor(),
+        ToDevice(device, non_blocking=True),
+        ToTorchImage(),
+        NormalizeImage(IMAGENET_MEAN, IMAGENET_STD, dtype)
     ]
 
-    train_transform = transforms.Compose(t_augment_list + t_esential_list)
-    test_transform = transforms.Compose(t_eval_list + t_esential_list)
+    label_pipeline = [
+        IntDecoder(),
+        ToTensor(),
+        Squeeze(),
+        ToDevice(device, non_blocking=True)
+    ]
 
-    train_dataset = dataset(root=root, train=True, download=True)
-    # create samples from train dataset to evaluate model on it during training (without augmentation, etc.)
-    traintest_data = torch.utils.data.Subset(train_dataset, torch.randperm(len(train_dataset))[:traintest_size])
-
-    # Define trainloaders
-    trainloader = torch.utils.data.DataLoader(
-        DataTransformer(train_dataset, train_transform), 
-        batch_size=batch_size, shuffle=True, pin_memory=True, num_workers=4, drop_last=True
-    )
-    # prepare testloader and traintestloader (samples from training set)
-    # increase batch size by  3 // 2
-    testloader = torch.utils.data.DataLoader(
-        dataset(root=root, train=False, download=True, transform=test_transform),
-        batch_size=batch_size * 3 // 2, shuffle=False, pin_memory=True, num_workers=4
-    )
-    traintestloader = torch.utils.data.DataLoader(
-        DataTransformer(traintest_data, test_transform),
-        batch_size=batch_size * 3 // 2, shuffle=False, pin_memory=True, num_workers=4
-    )
-    
-    return trainloader, testloader, traintestloader
+    loader = Loader(path,
+                    batch_size=batch_size,
+                    num_workers=num_workers,
+                    order=OrderOption.SEQUENTIAL,
+                    drop_last=False,
+                    pipelines={
+                        'image': image_pipeline,
+                        'label': label_pipeline
+                    })
+    return loader
 
 # Optimizer
 def build_optimizer(model, name, opt_cfg: dict, sam=False, sam_rho=0.05):
@@ -223,14 +208,13 @@ def get_number_of_steps(trainloader, epochs): return len(trainloader) * epochs
 def get_number_of_params(model): return sum(p.numel() for p in model.parameters() if p.requires_grad)    
 
 @torch.no_grad()
-def estimate_metrics(model, loaders, device, ctx):
+def estimate_metrics(model, loaders, ctx):
     metrics = {}
     model.eval()
     for split, loader in loaders:
         running_loss = 0
         running_acc = 0
         for x, y in loader:
-            x, y = x.to(device, non_blocking=True), y.to(device, non_blocking=True)
             with ctx:
                 output = model(x)
                 loss = F.cross_entropy(output, y)
@@ -256,8 +240,14 @@ def main(cfg):
 
     if cfg.checkpointing and (not os.path.exists("checkpoints")): os.makedirs("checkpoints")
 
-    trainloader, testloader, traintestloader = get_data(cfg.batch_size, cfg.data_name, cfg.augment)
-    
+    _in_memory = True
+    trainloader = create_train_loader(
+        join_path('data', 'ffcv_imagenet', 'train'), 
+        ctx.batch_size, _in_memory, ptdtype, ctx.device, num_workers=ctx.n_workers)
+    testloader = create_val_loader(
+        join_path('data', 'ffcv_imagenet', 'train'), 
+        ctx.batch_size * 2, ptdtype, ctx.device, num_workers=ctx.n_workers)
+
     ptdtype = {'float32': torch.float32, 'bfloat16': torch.bfloat16, 'float16': torch.float16}[cfg.dtype]
     ctx = torch.autocast(enabled=cfg.mixp_enabled, device_type=cfg.device.split(":")[0], dtype=ptdtype)
     scaler = torch.cuda.amp.GradScaler(enabled=(cfg.dtype == 'float16'))
@@ -285,8 +275,6 @@ def main(cfg):
         t_epoch = time.time() 
         for x, y in trainloader:
             step += 1
-            x, y = x.to(cfg.device, non_blocking=True), y.to(cfg.device, non_blocking=True)
-            if cfg.mixup: x, y = mix_mixup(x, y, cfg.num_classes, alpha=0.2)
             # _________________________
             def fw_bw():
                 optimizer.zero_grad(set_to_none=True)
@@ -325,9 +313,9 @@ def main(cfg):
             if cfg.ema and (step % cfg.ema_step) == 0: compute_ema(model, ema_model, smoothing=0.99)
             # _________________________
             if (step % cfg.eval_step) == 0 or step == num_steps:
-                metrics = estimate_metrics(ema_model if cfg.ema else model, [('val', testloader), ('train', traintestloader)], cfg.device, ctx)
+                metrics = estimate_metrics(ema_model if cfg.ema else model, [('val', testloader)], ctx)
                 metrics['time'] = time.time() - t_all
-                print(f"step {step}: train acc {metrics['train/acc']:.4f}, val acc {metrics['val/acc']:.4f}, time {metrics['time']:.2f}s")
+                print(f"step {step}: val loss {metrics['val/loss']:.4f}, val acc {metrics['val/acc']:.4f}, time {metrics['time']:.2f}s")
                 if cfg.wandb_log: wandb.log(metrics, step=step)
                 if cfg.checkpointing:
                     torch.save(

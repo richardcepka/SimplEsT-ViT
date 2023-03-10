@@ -12,16 +12,12 @@ command:
   - ${program}
   - ${args}
 parameters:
-    data_name: 
-      value: "tiny"
     model_name: 
       value: "espatat" 
-    num_classes:
-      value: 200
     opt_name:
       value: "shampoo"
     batch_size:
-      value: 2024
+      value: 1024
     opt_cfg:
       parameters:
         lr:
@@ -37,11 +33,11 @@ parameters:
         drop_p: 
           values: [0.2, 0]
         image_size:
-          value: 64
+          value: 224
         patch_size:
-          value: 8
+          value: 16
         num_classes:
-          value: 200
+          value: 1000
         dim:
           value: 384
         depth:

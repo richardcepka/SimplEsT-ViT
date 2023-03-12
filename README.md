@@ -59,7 +59,7 @@ The dataset contains 110 000 images of 200 classes downsized to 64x64 colored im
         ```bash 
         wget https://image-net.org/data/ILSVRC/2012/ILSVRC2012_img_val.tar
         ```
-6. Run the script extract_ILSVRC.sh from the PyTorch GitHub, [extract_ILSVRC.sh](https://github.com/pytorch/examples/blob/main/imagenet/extract_ILSVRC.sh) 
+6. Run the script extract_ILSVRC.sh from the PyTorch GitHub, [extract_ILSVRC.sh](https://github.com/pytorch/examples/blob/main/imagenet/extract_ILSVRC.sh) (~ double memory) 
     ```bash
     wget -qO- https://raw.githubusercontent.com/pytorch/examples/main/imagenet/extract_ILSVRC.sh | bash
     ```
@@ -125,8 +125,8 @@ We are currently working on ImageNet experiments. We will update the repo with t
 |                   |    90 epoch    | 
 | :---              | :---:          | 
 | SimpleViT-S/16    |    76.5        |  
-| ResNet50 TAT      |    74.6        |  
-| SimplEsT-ViT-S/16 |    .           |    
+| ResNet50-TAT[^1]     |    74.6        |  
+| SimplEsT-ViT-S/16[^2]|    .           |    
 
 ## References: 
 * E-SPA - [Deep Transformers without Shortcuts: Modifying Self-attention for Faithful Signal Propagation ](https://openreview.net/forum?id=NPrsUQgMjKK)
@@ -137,3 +137,7 @@ We are currently working on ImageNet experiments. We will update the repo with t
 * Shampoo - [Shampoo: Preconditioned Stochastic Tensor Optimization](https://arxiv.org/abs/1802.09568), [Scalable Second Order Optimization for Deep Learning](https://arxiv.org/abs/2002.09018)
 * Adam - [Adam: A Method for Stochastic Optimization](https://arxiv.org/abs/1412.6980)
 
+
+[^1]: From TaT paper Table 4, 90 epochs with $w = 0.0$. TaT setup: label smoothing + dropout + weight decay.
+
+[^2]: ~20 M parameters.

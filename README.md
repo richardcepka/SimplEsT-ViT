@@ -138,6 +138,6 @@ We are currently working on ImageNet experiments. We will update the repo with t
 * Adam - [Adam: A Method for Stochastic Optimization](https://arxiv.org/abs/1412.6980)
 
 
-[^1]: From TaT paper Table 4, 90 epochs with $w = 0.0$. TaT setup: label smoothing + dropout + weight decay.
+[^1]: From TaT paper Table 4, 90 epochs with w = 0.0. TaT setup: label smoothing + dropout + weight decay.
 
 [^2]: ~20 M parameters.

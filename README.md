@@ -9,17 +9,7 @@ Simpl**E**s**T**-ViT (**E**-SPA + **T**AT) - vanilla transformer (without normal
 
 ## Dependencies:
 
-```bash
-sudo apt-get install build-essential
-```
-```bash
-conda create -y -n ffcv python=3.9 cupy pkg-config libjpeg-turbo opencv pytorch torchvision pytorch-cuda=11.7 numba c pytorch-nightly -c nvidia -c conda-forge
-```
-```bash
-conda activate ffcv
-pip install ffcv
-pip install wandb
-```
+[https://github.com/libffcv/ffcv/discussions/284](https://github.com/libffcv/ffcv/discussions/284)
 ## Data:
 
 ### ImageNet (~500GB):
@@ -46,13 +36,13 @@ pip install wandb
     ```bash
     wget -qO- https://raw.githubusercontent.com/pytorch/examples/main/imagenet/extract_ILSVRC.sh | bash
     ```
-7. Prepare the data for training (double the memory)
+7. Prepare the data for training (~ double the memory)
     ```bash
-    python3 prepare_imagenet.py --data_dir data/imagenet --output_dir data/ffcv_imagenet --split train --num_workers 16  --max_resolution 512
+    python3 prepare_imagenet.py --data_dir data/imagenet --write_dir data/ffcv_imagenet --split train --num_workers 16  --max_resolution 512
     ```
 
     ```bash
-    python3 prepare_imagenet.py --data_dir data/imagenet  --output_dir data/ffcv_imagenet --split val --num_workers 16  --max_resolution 512
+    python3 prepare_imagenet.py --data_dir data/imagenet  --write_dir data/ffcv_imagenet --split val --num_workers 16  --max_resolution 512
     ```
 ## Results:
 

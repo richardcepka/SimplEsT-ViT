@@ -122,7 +122,6 @@ def create_train_loader(path, batch_size, in_memory, dtype, device, num_workers=
                         'image': image_pipeline,
                         'label': label_pipeline
                     })
-
     return loader
 
 def create_val_loader(path, batch_size, dtype, device, num_workers=16):

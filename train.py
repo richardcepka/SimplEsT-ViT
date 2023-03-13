@@ -6,7 +6,7 @@ from collections import defaultdict
 from dataclasses import asdict, dataclass, field
 from functools import partial
 from os.path import join as join_path
-from statistics import median, mean
+from statistics import median
 
 import torch
 import torch.nn.functional as F
@@ -23,27 +23,27 @@ from tricks import SAM, compute_ema, mix_mixup
 class Config:
     seed: int = 3407
     # wandb logging
-    wandb_log: bool = False  # disabled by default
+    wandb_log: bool = True  # disabled by default
     wandb_project: str = 'nanovit'
-    wandb_run_name: str = ''
+    wandb_run_name: str = 'shampoo/imagenet/vit'
     # training
     epochs: int = 90
     num_warmup_steps: int = 10_000
     eval_step: int = 1251 * 3
-    grad_accumulation_steps: int = 2
+    grad_accumulation_steps: int = 4
     train_metrics_window_size: int = 128
     grad_clip: float = 1.0
     lb_smooth: float = 0.  # [0.0, 1.0]
-    checkpointing: bool = False
+    checkpointing: bool = True
     # mixed precision
     device: str = "cuda"
     dtype: str = "bfloat16"
     mixp_enabled: bool = True
     # data
-    batch_size: int = 512
+    batch_size: int = 256
     data_name: str = "imagenet"  # "cifar10", "cifar100", "imagenet200", "imagenet"
     augment: bool = True
-    num_classes: int = 10  # 10, 100, 200, 1000
+    num_classes: int = 1000  # 10, 100, 200, 1000
     # model
     model_name: str = "espatat"  # "simplevit", "espatat"
     model_cfg: dict = field(
@@ -66,14 +66,14 @@ class Config:
     opt_name: str = "shampoo"
     opt_cfg: dict = field(
         default_factory=lambda: dict(
-            lr=0.0007,  # 0.0005
-            weight_decay=0.,  # 0.00005
+            lr=0.0003,  # 0.0005
+            weight_decay=0.00005,  # 0.00005
             precondition_frequency=25,
             start_preconditioning_step=25,
         )
     ) 
     # tricks
-    mixup: bool = False
+    mixup: bool = True
     ema: bool = False
     ema_step: int = 5
     sam: bool = False
@@ -199,8 +199,6 @@ def set_seed(seed=3407):
     torch.cuda.manual_seed(seed)
     torch.cuda.manual_seed_all(seed)
 
-def get_number_of_steps(trainloader, epochs): return len(trainloader) * epochs
-
 def get_number_of_params(model): return sum(p.numel() for p in model.parameters() if p.requires_grad)    
 
 @torch.no_grad()
@@ -274,7 +272,7 @@ def main(cfg):
         # forward-backward
         def fw_bw(x, y):
             optimizer.zero_grad(set_to_none=True)
-            _loss, _acc = 0, 0
+            _loss = 0
             for _ in range(cfg.grad_accumulation_steps):
                 with ctx:
                     output = model(x)
@@ -282,7 +280,6 @@ def main(cfg):
                     loss = loss / cfg.grad_accumulation_steps
                     
                     _loss += loss.item()
-                    _acc += acc(output, y).item()
 
                 # async prefetch next batch while model is doing the forward pass on the GPU
                 # will be in GPU memory during evaluation :(
@@ -293,20 +290,19 @@ def main(cfg):
             if cfg.grad_clip > 0:
                 scaler.unscale_(optimizer)
                 torch.nn.utils.clip_grad_norm_(model.parameters(), cfg.grad_clip) 
-            return _acc / cfg.grad_accumulation_steps, _loss / cfg.grad_accumulation_steps, x, y
+            return _loss / cfg.grad_accumulation_steps, x, y
 
         if isinstance(optimizer, SAM):
             step_type = ("first", "second") if (step % cfg.sam_step) == 0 else ("skip",)
             for s in step_type:
-                _acc, _loss, x, y = fw_bw(x, y)
+                _loss, x, y = fw_bw(x, y)
                 scaler.step(optimizer, step_type=s)
                 scaler.update()
         else:
-            _acc, _loss, x, y = fw_bw(x, y)
+            _loss, x, y = fw_bw(x, y)
             scaler.step(optimizer)
             scaler.update()
 
-        train_metrics["acc"].append(_acc)
         train_metrics["loss"].append(_loss)
         scheduler.step()
         # __________________________
@@ -315,18 +311,15 @@ def main(cfg):
         # aggregate training metrics
         if (step % cfg.train_metrics_window_size) == 0: 
             agg_loss = median(train_metrics["loss"])
-            agg_acc = mean(train_metrics["acc"])
             
             print(
-                f"step {step}: train loss-media-{cfg.train_metrics_window_size} {agg_loss:.4f}", 
-                f"train acc-mean-{cfg.train_metrics_window_size} {agg_acc:.4f}", 
+                f"step {step}/{num_steps}: train/loss-med{cfg.train_metrics_window_size} {agg_loss:.4f}", 
                 sep=", "
             ) 
             if cfg.wandb_log:
                 wandb.log(
                     {
-                    f"train/loss-media-{cfg.train_metrics_window_size}": agg_loss, 
-                    f"train/acc-mean-{cfg.train_metrics_window_size}": agg_acc,
+                    f"train/loss-media-{cfg.train_metrics_window_size}": agg_loss,
                     "lr": scheduler.get_last_lr()[0]
                     }, 
                 step=step)
@@ -342,8 +335,8 @@ def main(cfg):
             )
             metrics['time'] = time.time() - t_all
             print(
-                f"step {step}: val acc {metrics['val/acc']:.4f}",
-                f"step {step}: val loss {metrics['val/loss']:.4f}",  
+                f"step {step}/{num_steps}: val/acc {metrics['val/acc']:.4f}",
+                f"val/loss {metrics['val/loss']:.4f}",  
                 f"time {metrics['time']:.4f}s",
                 sep=", "
             )
@@ -359,7 +352,7 @@ def main(cfg):
                     }, 
                     f'checkpoints/model{step}.pth'
                 )
-                if cfg.wandb_log:
+                if cfg.wandb_log and step > 100080:  # > 80 epochs for full 1024 bs imagenet
                     model_artifact = wandb.Artifact(f"model-checkpoint-{step}", type="model")
                     model_artifact.add_file(f'checkpoints/model{step}.pth')
                     wandb.save(f'checkpoints/model{step}.pth')

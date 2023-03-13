@@ -278,19 +278,18 @@ def main(cfg):
                     output = model(x)
                     loss = F.cross_entropy(output, y, label_smoothing=cfg.lb_smooth) 
                     loss = loss / cfg.grad_accumulation_steps
-                    
-                    _loss += loss.item()
 
                 # async prefetch next batch while model is doing the forward pass on the GPU
                 # will be in GPU memory during evaluation :(
                 x, y = get_batch()
-
+                
+                _loss += loss.item()
                 scaler.scale(loss).backward()
 
             if cfg.grad_clip > 0:
                 scaler.unscale_(optimizer)
                 torch.nn.utils.clip_grad_norm_(model.parameters(), cfg.grad_clip) 
-            return _loss / cfg.grad_accumulation_steps, x, y
+            return _loss, x, y
 
         if isinstance(optimizer, SAM):
             step_type = ("first", "second") if (step % cfg.sam_step) == 0 else ("skip",)

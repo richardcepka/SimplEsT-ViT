@@ -2,10 +2,11 @@ import copy
 import math
 import os
 import time
+from collections import defaultdict
 from dataclasses import asdict, dataclass, field
 from functools import partial
 from os.path import join as join_path
-from statistics import median
+from statistics import median, mean
 
 import torch
 import torch.nn.functional as F
@@ -29,7 +30,8 @@ class Config:
     epochs: int = 90
     num_warmup_steps: int = 75
     eval_step: int = 48 * 5
-    dirty_loss_window_size: int = 128
+    grad_accumulation_steps: int = 1
+    train_metrics_window_size: int = 128
     grad_clip: float = 1.0
     lb_smooth: float = 0.  # [0.0, 1.0]
     checkpointing: bool = False
@@ -82,22 +84,7 @@ class Config:
         return asdict(self)
 
 # Data
-def get_data(batch_size, data_name='cifar10', augment=False, traintest_size=1_000) -> dict:
-    class DataTransformer(torch.utils.data.Dataset):
-        def __init__(self, dataset, transform=None):
-            self.dataset = dataset
-            self.transform = transform
-            
-        def __getitem__(self, index):
-            x, y = self.dataset[index]
-            if self.transform:
-                x = self.transform(x)
-            return x, y
-            
-        def __len__(self):
-            return len(self.dataset)
-
-            
+def get_data(batch_size, data_name='cifar10', augment=False) -> dict:
     def _get_image_folder(data_name, root, train, download, transform=None):
         return datasets.ImageFolder(root=join_path(root, data_name, 'train' if train else 'val'), transform=transform)
     
@@ -148,27 +135,17 @@ def get_data(batch_size, data_name='cifar10', augment=False, traintest_size=1_00
     train_transform = transforms.Compose(t_augment_list + t_esential_list)
     test_transform = transforms.Compose(t_eval_list + t_esential_list)
 
-    train_dataset = dataset(root=root, train=True, download=True)
-    # create samples from train dataset to evaluate model on it during training (without augmentation, etc.)
-    traintest_data = torch.utils.data.Subset(train_dataset, torch.randperm(len(train_dataset))[:traintest_size])
-
     # Define trainloaders
     trainloader = torch.utils.data.DataLoader(
-        DataTransformer(train_dataset, train_transform), 
+        dataset(root=root, train=True, download=True, transform=train_transform),
         batch_size=batch_size, shuffle=True, pin_memory=True, num_workers=4, drop_last=True
     )
-    # prepare testloader and traintestloader (samples from training set)
-    # increase batch size by  3 // 2
+    # Increase batch size for validation by 3 // 2
     testloader = torch.utils.data.DataLoader(
         dataset(root=root, train=False, download=True, transform=test_transform),
         batch_size=batch_size * 3 // 2, shuffle=False, pin_memory=True, num_workers=4
     )
-    traintestloader = torch.utils.data.DataLoader(
-        DataTransformer(traintest_data, test_transform),
-        batch_size=batch_size * 3 // 2, shuffle=False, pin_memory=True, num_workers=4
-    )
-    
-    return trainloader, testloader, traintestloader
+    return trainloader, testloader
 
 # Optimizer
 def build_optimizer(model, name, opt_cfg: dict, sam=False, sam_rho=0.05):
@@ -227,8 +204,7 @@ def estimate_metrics(model, loaders, device, ctx):
     metrics = {}
     model.eval()
     for split, loader in loaders:
-        running_loss = 0
-        running_acc = 0
+        running_loss, running_acc = 0, 0
         for x, y in loader:
             x, y = x.to(device, non_blocking=True), y.to(device, non_blocking=True)
             with ctx:
@@ -256,7 +232,7 @@ def main(cfg):
 
     if cfg.checkpointing and (not os.path.exists("checkpoints")): os.makedirs("checkpoints")
 
-    trainloader, testloader, traintestloader = get_data(cfg.batch_size, cfg.data_name, cfg.augment)
+    trainloader, testloader = get_data(cfg.batch_size, cfg.data_name, cfg.augment)
     
     ptdtype = {'float32': torch.float32, 'bfloat16': torch.bfloat16, 'float16': torch.float16}[cfg.dtype]
     ctx = torch.autocast(enabled=cfg.mixp_enabled, device_type=cfg.device.split(":")[0], dtype=ptdtype)
@@ -266,7 +242,7 @@ def main(cfg):
     if cfg.ema: ema_model = copy.deepcopy(model)
 
     optimizer = build_optimizer(model, cfg.opt_name, cfg.opt_cfg, sam=cfg.sam, sam_rho=cfg.sam_rho)
-    num_steps = get_number_of_steps(trainloader, cfg.epochs)
+    num_steps = get_number_of_steps(trainloader, cfg.epochs) // cfg.grad_accumulation_steps
     scheduler = get_cosine_schedule_with_warmup(optimizer, cfg.num_warmup_steps, num_steps, num_cycles=0.5, last_epoch=-1)
 
     model = torch.compile(model)  # mode="max-autotune"
@@ -275,59 +251,92 @@ def main(cfg):
     print(
         f"Number of parameters: {get_number_of_params(model)}",
         f"Number of steps: {num_steps}",
-        f"Steps per epoch: {len(trainloader)}",
+        f"Steps per epoch: {num_steps // cfg.epochs}",
         sep="\n"
     )
+
+    trainloader = iter(trainloader)
+    def get_batch():
+        x, y = next(trainloader)
+        x, y = x.to(cfg.device, non_blocking=True), y.to(cfg.device, non_blocking=True)
+        if cfg.mixup: x, y = mix_mixup(x, y, cfg.num_classes, alpha=0.2)
+        return x, y
+    x, y = get_batch()
+
     step = 0
     t_all = time.time()
     for epoch in range(1, cfg.epochs + 1):
-        dirt_loss = []
+        train_metrics = defaultdict(list)
         t_epoch = time.time() 
-        for x, y in trainloader:
+        # __________________________________________________
+        for _ in range(num_steps // cfg.epochs):
             step += 1
-            x, y = x.to(cfg.device, non_blocking=True), y.to(cfg.device, non_blocking=True)
-            if cfg.mixup: x, y = mix_mixup(x, y, cfg.num_classes, alpha=0.2)
             # _________________________
-            def fw_bw():
+            # forward-backward
+            def fw_bw(x, y):
                 optimizer.zero_grad(set_to_none=True)
-                with ctx:
-                    output = model(x)
-                    loss = F.cross_entropy(output, y, label_smoothing=cfg.lb_smooth)
-                scaler.scale(loss).backward()
+                _loss, _acc = 0, 0
+                for _ in range(cfg.grad_accumulation_steps):
+                    with ctx:
+                        output = model(x)
+                        loss = F.cross_entropy(output, y, label_smoothing=cfg.lb_smooth) 
+                        loss = loss / cfg.grad_accumulation_steps
+                        
+                        _loss += loss.item()
+                        _acc += acc(output, y).item()
+
+                    # async prefetch next batch while model is doing the forward pass on the GPU
+                    # will be in GPU memory during evaluation :(
+                    x, y = get_batch()
+
+                    scaler.scale(loss).backward()
 
                 if cfg.grad_clip > 0:
                     scaler.unscale_(optimizer)
                     torch.nn.utils.clip_grad_norm_(model.parameters(), cfg.grad_clip) 
-                return loss
-            
+                return _acc/ cfg.grad_accumulation_steps, _loss/ cfg.grad_accumulation_steps, x, y
+
             if isinstance(optimizer, SAM):
                 step_type = ("first", "second") if (step % cfg.sam_step) == 0 else ("skip",)
                 for s in step_type:
-                    _loss = fw_bw()
+                    _acc, _loss, x, y = fw_bw(x, y)
                     scaler.step(optimizer, step_type=s)
                     scaler.update()
             else:
-                _loss = fw_bw()
+                _acc, _loss, x, y = fw_bw(x, y)
                 scaler.step(optimizer)
                 scaler.update()
 
-            dirt_loss.append(_loss.item())
-            scheduler.step()        
+            train_metrics["acc"].append(_acc)
+            train_metrics["loss"].append(_loss)
+            scheduler.step()
+            # __________________________
+
             # _________________________
-            if (step % cfg.dirty_loss_window_size) == 0: 
-                _median = median(dirt_loss)
-                print(f"step {step}: dirty train loss {_median:.4f}") 
+            # aggregate training metrics
+            if (step % cfg.train_metrics_window_size) == 0: 
+                agg_loss = median(train_metrics["loss"])
+                agg_acc = mean(train_metrics["acc"])
+
+                print(f"step {step}: train loss {agg_loss:.4f}, train acc {agg_acc:.4f}") 
                 if cfg.wandb_log:
-                    wandb.log({f"train/dirty-loss-media{cfg.dirty_loss_window_size}": _median, "lr": scheduler.get_last_lr()[0]}, step=step)
-                dirt_loss = []
+                    wandb.log(
+                        {
+                        f"train/loss-media{cfg.train_metrics_window_size}": agg_loss, 
+                        f"train/acc-mean{cfg.train_metrics_window_size}": agg_acc,
+                        "lr": scheduler.get_last_lr()[0]
+                        }, 
+                    step=step)
+                train_metrics = defaultdict(list)
             # _________________________
 
             if cfg.ema and (step % cfg.ema_step) == 0: compute_ema(model, ema_model, smoothing=0.99)
             # _________________________
+            # evaluate model and validation dataset
             if (step % cfg.eval_step) == 0 or step == num_steps:
-                metrics = estimate_metrics(ema_model if cfg.ema else model, [('val', testloader), ('train', traintestloader)], cfg.device, ctx)
+                metrics = estimate_metrics(ema_model if cfg.ema else model, [('val', testloader)], cfg.device, ctx)
                 metrics['time'] = time.time() - t_all
-                print(f"step {step}: train acc {metrics['train/acc']:.4f}, val acc {metrics['val/acc']:.4f}, time {metrics['time']:.2f}s")
+                print(f"step {step}: val acc {metrics['val/acc']:.4f}, time {metrics['time']:.2f}s")
                 if cfg.wandb_log: wandb.log(metrics, step=step)
                 if cfg.checkpointing:
                     torch.save(
@@ -347,6 +356,7 @@ def main(cfg):
                         wandb.run.log_artifact(model_artifact)
             # _________________________
 
+        # __________________________________________________
         dt_epoch = time.time() - t_epoch
         print(f"Epoch {epoch} took {dt_epoch:.2f}s")
         if cfg.wandb_log: wandb.log(dict(step_time=dt_epoch/len(trainloader), epoch_time=dt_epoch), step=step)

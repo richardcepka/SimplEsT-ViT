@@ -28,9 +28,9 @@ class Config:
     wandb_run_name: str = ''
     # training
     epochs: int = 90
-    num_warmup_steps: int = 75
-    eval_step: int = 48 * 5
-    grad_accumulation_steps: int = 1
+    num_warmup_steps: int = 10_000
+    eval_step: int = 1251 * 3
+    grad_accumulation_steps: int = 2
     train_metrics_window_size: int = 128
     grad_clip: float = 1.0
     lb_smooth: float = 0.  # [0.0, 1.0]
@@ -40,17 +40,17 @@ class Config:
     dtype: str = "bfloat16"
     mixp_enabled: bool = True
     # data
-    batch_size: int = 2048
-    data_name: str = "cifar10"  # "cifar10", "cifar100", "imagenet200", "imagenet"
+    batch_size: int = 512
+    data_name: str = "imagenet"  # "cifar10", "cifar100", "imagenet200", "imagenet"
     augment: bool = True
     num_classes: int = 10  # 10, 100, 200, 1000
     # model
     model_name: str = "espatat"  # "simplevit", "espatat"
     model_cfg: dict = field(
         default_factory=lambda: dict(
-            image_size=32,  # 32, 32, 64, 224
-            patch_size=4,   # 4, 4, 8, 16
-            num_classes=10,  # 10, 100, 200, 1000
+            image_size=224,  # 32, 32, 64, 224
+            patch_size=16,   # 4, 4, 8, 16
+            num_classes=1000,  # 10, 100, 200, 1000
             dim=384,
             depth=12,
             heads=6,
@@ -138,12 +138,12 @@ def get_data(batch_size, data_name='cifar10', augment=False) -> dict:
     # Define trainloaders
     trainloader = torch.utils.data.DataLoader(
         dataset(root=root, train=True, download=True, transform=train_transform),
-        batch_size=batch_size, shuffle=True, pin_memory=True, num_workers=4, drop_last=True
+        batch_size=batch_size, shuffle=True, pin_memory=True, num_workers=14, drop_last=True
     )
     # Increase batch size for validation by 3 // 2
     testloader = torch.utils.data.DataLoader(
         dataset(root=root, train=False, download=True, transform=test_transform),
-        batch_size=batch_size * 3 // 2, shuffle=False, pin_memory=True, num_workers=4
+        batch_size=batch_size * 3 // 2, shuffle=False, pin_memory=True, num_workers=14
     )
     return trainloader, testloader
 
@@ -188,6 +188,10 @@ def build_model(model_name, model_cfg: dict):
         return SimpleViT(**model_cfg)
 
 # Utils
+def loopy(dl):
+    while True:
+        for x in dl: yield x 
+
 def acc(output, target): return torch.sum(output.argmax(1) == target) / len(target)
 
 def set_seed(seed=3407):
@@ -242,7 +246,7 @@ def main(cfg):
     if cfg.ema: ema_model = copy.deepcopy(model)
 
     optimizer = build_optimizer(model, cfg.opt_name, cfg.opt_cfg, sam=cfg.sam, sam_rho=cfg.sam_rho)
-    num_steps = get_number_of_steps(trainloader, cfg.epochs) // cfg.grad_accumulation_steps
+    num_steps = (cfg.epochs * len(trainloader)) // cfg.grad_accumulation_steps
     scheduler = get_cosine_schedule_with_warmup(optimizer, cfg.num_warmup_steps, num_steps, num_cycles=0.5, last_epoch=-1)
 
     model = torch.compile(model)  # mode="max-autotune"
@@ -251,116 +255,116 @@ def main(cfg):
     print(
         f"Number of parameters: {get_number_of_params(model)}",
         f"Number of steps: {num_steps}",
-        f"Steps per epoch: {num_steps // cfg.epochs}",
         sep="\n"
     )
-
-    trainloader = iter(trainloader)
+        
+    dataloader_loopy = loopy(trainloader)
     def get_batch():
-        x, y = next(trainloader)
+        x, y = next(dataloader_loopy)
         x, y = x.to(cfg.device, non_blocking=True), y.to(cfg.device, non_blocking=True)
         if cfg.mixup: x, y = mix_mixup(x, y, cfg.num_classes, alpha=0.2)
         return x, y
+   
     x, y = get_batch()
+    train_metrics = defaultdict(list)
 
-    step = 0
     t_all = time.time()
-    for epoch in range(1, cfg.epochs + 1):
-        train_metrics = defaultdict(list)
-        t_epoch = time.time() 
-        # __________________________________________________
-        for _ in range(num_steps // cfg.epochs):
-            step += 1
-            # _________________________
-            # forward-backward
-            def fw_bw(x, y):
-                optimizer.zero_grad(set_to_none=True)
-                _loss, _acc = 0, 0
-                for _ in range(cfg.grad_accumulation_steps):
-                    with ctx:
-                        output = model(x)
-                        loss = F.cross_entropy(output, y, label_smoothing=cfg.lb_smooth) 
-                        loss = loss / cfg.grad_accumulation_steps
-                        
-                        _loss += loss.item()
-                        _acc += acc(output, y).item()
+    for step in range(1, num_steps + 1):
+        # _________________________
+        # forward-backward
+        def fw_bw(x, y):
+            optimizer.zero_grad(set_to_none=True)
+            _loss, _acc = 0, 0
+            for _ in range(cfg.grad_accumulation_steps):
+                with ctx:
+                    output = model(x)
+                    loss = F.cross_entropy(output, y, label_smoothing=cfg.lb_smooth) 
+                    loss = loss / cfg.grad_accumulation_steps
+                    
+                    _loss += loss.item()
+                    _acc += acc(output, y).item()
 
-                    # async prefetch next batch while model is doing the forward pass on the GPU
-                    # will be in GPU memory during evaluation :(
-                    x, y = get_batch()
+                # async prefetch next batch while model is doing the forward pass on the GPU
+                # will be in GPU memory during evaluation :(
+                x, y = get_batch()
 
-                    scaler.scale(loss).backward()
+                scaler.scale(loss).backward()
 
-                if cfg.grad_clip > 0:
-                    scaler.unscale_(optimizer)
-                    torch.nn.utils.clip_grad_norm_(model.parameters(), cfg.grad_clip) 
-                return _acc/ cfg.grad_accumulation_steps, _loss/ cfg.grad_accumulation_steps, x, y
+            if cfg.grad_clip > 0:
+                scaler.unscale_(optimizer)
+                torch.nn.utils.clip_grad_norm_(model.parameters(), cfg.grad_clip) 
+            return _acc / cfg.grad_accumulation_steps, _loss / cfg.grad_accumulation_steps, x, y
 
-            if isinstance(optimizer, SAM):
-                step_type = ("first", "second") if (step % cfg.sam_step) == 0 else ("skip",)
-                for s in step_type:
-                    _acc, _loss, x, y = fw_bw(x, y)
-                    scaler.step(optimizer, step_type=s)
-                    scaler.update()
-            else:
+        if isinstance(optimizer, SAM):
+            step_type = ("first", "second") if (step % cfg.sam_step) == 0 else ("skip",)
+            for s in step_type:
                 _acc, _loss, x, y = fw_bw(x, y)
-                scaler.step(optimizer)
+                scaler.step(optimizer, step_type=s)
                 scaler.update()
+        else:
+            _acc, _loss, x, y = fw_bw(x, y)
+            scaler.step(optimizer)
+            scaler.update()
 
-            train_metrics["acc"].append(_acc)
-            train_metrics["loss"].append(_loss)
-            scheduler.step()
-            # __________________________
+        train_metrics["acc"].append(_acc)
+        train_metrics["loss"].append(_loss)
+        scheduler.step()
+        # __________________________
 
-            # _________________________
-            # aggregate training metrics
-            if (step % cfg.train_metrics_window_size) == 0: 
-                agg_loss = median(train_metrics["loss"])
-                agg_acc = mean(train_metrics["acc"])
+        # _________________________
+        # aggregate training metrics
+        if (step % cfg.train_metrics_window_size) == 0: 
+            agg_loss = median(train_metrics["loss"])
+            agg_acc = mean(train_metrics["acc"])
+            
+            print(
+                f"step {step}: train loss-media-{cfg.train_metrics_window_size} {agg_loss:.4f}", 
+                f"train acc-mean-{cfg.train_metrics_window_size} {agg_acc:.4f}", 
+                sep=", "
+            ) 
+            if cfg.wandb_log:
+                wandb.log(
+                    {
+                    f"train/loss-media-{cfg.train_metrics_window_size}": agg_loss, 
+                    f"train/acc-mean-{cfg.train_metrics_window_size}": agg_acc,
+                    "lr": scheduler.get_last_lr()[0]
+                    }, 
+                step=step)
+            train_metrics = defaultdict(list)
+        # _________________________
 
-                print(f"step {step}: train loss {agg_loss:.4f}, train acc {agg_acc:.4f}") 
+        if cfg.ema and (step % cfg.ema_step) == 0: compute_ema(model, ema_model, smoothing=0.99)
+        # _________________________
+        # evaluate model and validation dataset
+        if (step % cfg.eval_step) == 0 or step == num_steps:
+            metrics = estimate_metrics(
+                ema_model if cfg.ema else model, [('val', testloader)], cfg.device, ctx
+            )
+            metrics['time'] = time.time() - t_all
+            print(
+                f"step {step}: val acc {metrics['val/acc']:.4f}",
+                f"step {step}: val loss {metrics['val/loss']:.4f}",  
+                f"time {metrics['time']:.4f}s",
+                sep=", "
+            )
+            if cfg.wandb_log: wandb.log(metrics, step=step)
+            if cfg.checkpointing:
+                torch.save(
+                    {
+                    'step': step,
+                    'model_state_dict': (ema_model if cfg.ema else model).state_dict(),
+                    'optimizer_state_dict': optimizer.state_dict(),
+                    'scheduler_state_dict': scheduler.state_dict(),
+                    'val_acc': metrics['val/acc'],
+                    }, 
+                    f'checkpoints/model{step}.pth'
+                )
                 if cfg.wandb_log:
-                    wandb.log(
-                        {
-                        f"train/loss-media{cfg.train_metrics_window_size}": agg_loss, 
-                        f"train/acc-mean{cfg.train_metrics_window_size}": agg_acc,
-                        "lr": scheduler.get_last_lr()[0]
-                        }, 
-                    step=step)
-                train_metrics = defaultdict(list)
-            # _________________________
-
-            if cfg.ema and (step % cfg.ema_step) == 0: compute_ema(model, ema_model, smoothing=0.99)
-            # _________________________
-            # evaluate model and validation dataset
-            if (step % cfg.eval_step) == 0 or step == num_steps:
-                metrics = estimate_metrics(ema_model if cfg.ema else model, [('val', testloader)], cfg.device, ctx)
-                metrics['time'] = time.time() - t_all
-                print(f"step {step}: val acc {metrics['val/acc']:.4f}, time {metrics['time']:.2f}s")
-                if cfg.wandb_log: wandb.log(metrics, step=step)
-                if cfg.checkpointing:
-                    torch.save(
-                        {
-                        'epoch': epoch,
-                        'model_state_dict': (ema_model if cfg.ema else model).state_dict(),
-                        'optimizer_state_dict': optimizer.state_dict(),
-                        'scheduler_state_dict': scheduler.state_dict(),
-                        'val_acc': metrics['val/acc'],
-                        }, 
-                        f'checkpoints/model{step}.pth'
-                    )
-                    if cfg.wandb_log:
-                        model_artifact = wandb.Artifact(f"model-checkpoint-{step}", type="model")
-                        model_artifact.add_file(f'checkpoints/model{step}.pth')
-                        wandb.save(f'checkpoints/model{step}.pth')
-                        wandb.run.log_artifact(model_artifact)
-            # _________________________
-
-        # __________________________________________________
-        dt_epoch = time.time() - t_epoch
-        print(f"Epoch {epoch} took {dt_epoch:.2f}s")
-        if cfg.wandb_log: wandb.log(dict(step_time=dt_epoch/len(trainloader), epoch_time=dt_epoch), step=step)
-
+                    model_artifact = wandb.Artifact(f"model-checkpoint-{step}", type="model")
+                    model_artifact.add_file(f'checkpoints/model{step}.pth')
+                    wandb.save(f'checkpoints/model{step}.pth')
+                    wandb.run.log_artifact(model_artifact)
+        # _________________________
 
 if __name__ == "__main__":
     main(Config())

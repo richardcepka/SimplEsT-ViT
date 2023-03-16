@@ -263,27 +263,24 @@ class Attention(nn.Module):
         self.heads = heads
         self.scale = self.dim_head**-0.5
 
-        self.attend = nn.Softmax(dim=-1)
-
         self.to_qkv = nn.Linear(dim, dim * 3, bias=qkv_bias)
 
         # ____________________________ E-SPA ______________________________
         # initialize biase to zero
-        if qkv_bias:
-            nn.init.zeros_(self.to_qkv.bias)
+        if qkv_bias: nn.init.zeros_(self.to_qkv.bias)
 
         # initialize q_i with zeros
         torch.nn.init.zeros_(self.to_qkv.weight[:dim, :])
         # initialize k_i and v_i with N(0, 1/dim)
         torch.nn.init.normal_(self.to_qkv.weight[dim:, :], std=dim**-0.5)
-
+        
         previous_inv = get_decomposed_kernel_matrix(
             seq_lenght, depth - 1, alpha_max_depth, max_depth, inverse=True
         )
         current = get_decomposed_kernel_matrix(
             seq_lenght, depth, alpha_max_depth, max_depth, inverse=False
         )
-        attention = (current @ previous_inv).float()
+        attention = current @ previous_inv
         # make sure all values are positive
         # reason can be numerical precision (E-SPA is only empirically verified that attention is positive)
         min_value = attention.min()
@@ -296,21 +293,16 @@ class Attention(nn.Module):
         self.register_buffer("B", B.unsqueeze(0).unsqueeze(0))
         # _________________________________________________________________
 
-        self.flash = True
-        if not self.flash: print("Not Using Flash Attention CUDA Kernels")
-
     def forward(self, x):
         B, N, D = x.shape
         qkv = self.to_qkv(x).reshape(B, N, 3, self.heads, self.dim_head).permute(2, 0, 3, 1, 4)
         q, k, v = qkv.unbind(0)
 
-        if self.flash:
-            # efficient attention using Flash Attention CUDA kernels
-            out = self.d * F.scaled_dot_product_attention(q, k, v, attn_mask=self.B)  
-        else:
-            dots = torch.matmul(q, k.transpose(-1, -2)) * self.scale + self.B
-            attn = self.d * self.attend(dots)
-            out = torch.matmul(attn, v)
+        out = self.d * F.scaled_dot_product_attention(q, k, v, attn_mask=self.B)  
+        # dots = torch.matmul(q, k.transpose(-1, -2)) * self.scale + self.B
+        # attn = self.d * F.softmax(dots, dim=-1)
+        # out = torch.matmul(attn, v)
+
         return out.transpose(1, 2).reshape(B, N, D)
 
 
@@ -405,5 +397,4 @@ class SimplEsTViT(nn.Module):
         x = self.transformer(x)
         x = self.drop(x)  # better before pooling https://arxiv.org/pdf/2302.06112.pdf
         x = x.mean(dim=1)
-        # x = self.drop(x)
         return self.linear_head(x)

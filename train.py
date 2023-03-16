@@ -23,14 +23,14 @@ from tricks import SAM, compute_ema, mix_mixup
 class Config:
     seed: int = 3407
     # wandb logging
-    wandb_log: bool = True  # disabled by default
+    wandb_log: bool = False  # disabled by default
     wandb_project: str = 'nanovit'
-    wandb_run_name: str = 'shampoo/imagenet/vit'
+    wandb_run_name: str = ''
     # training
     epochs: int = 90
     num_warmup_steps: int = 10_000
     eval_step: int = 1251 * 3
-    grad_accumulation_steps: int = 4
+    grad_accumulation_steps: int = 2
     train_metrics_window_size: int = 128
     grad_clip: float = 1.0
     lb_smooth: float = 0.  # [0.0, 1.0]
@@ -40,7 +40,7 @@ class Config:
     dtype: str = "bfloat16"
     mixp_enabled: bool = True
     # data
-    batch_size: int = 256
+    batch_size: int = 512
     data_name: str = "imagenet"  # "cifar10", "cifar100", "imagenet200", "imagenet"
     augment: bool = True
     num_classes: int = 1000  # 10, 100, 200, 1000
@@ -67,7 +67,7 @@ class Config:
     opt_cfg: dict = field(
         default_factory=lambda: dict(
             lr=0.0003,  # 0.0005
-            weight_decay=0.00005,  # 0.00005
+            weight_decay=0.00001,  # 0.00005
             precondition_frequency=25,
             start_preconditioning_step=25,
         )
@@ -138,12 +138,11 @@ def get_data(batch_size, data_name='cifar10', augment=False) -> dict:
     # Define trainloaders
     trainloader = torch.utils.data.DataLoader(
         dataset(root=root, train=True, download=True, transform=train_transform),
-        batch_size=batch_size, shuffle=True, pin_memory=True, num_workers=14, drop_last=True
+        batch_size=batch_size, shuffle=True, pin_memory=True, num_workers=4, drop_last=True
     )
-    # Increase batch size for validation by 3 // 2
     testloader = torch.utils.data.DataLoader(
         dataset(root=root, train=False, download=True, transform=test_transform),
-        batch_size=batch_size * 3 // 2, shuffle=False, pin_memory=True, num_workers=14
+        batch_size=batch_size, shuffle=False, pin_memory=True, num_workers=4
     )
     return trainloader, testloader
 
@@ -351,7 +350,7 @@ def main(cfg):
                     }, 
                     f'checkpoints/model{step}.pth'
                 )
-                if cfg.wandb_log and step > 100080:  # > 80 epochs for full 1024 bs imagenet
+                if cfg.wandb_log:
                     model_artifact = wandb.Artifact(f"model-checkpoint-{step}", type="model")
                     model_artifact.add_file(f'checkpoints/model{step}.pth')
                     wandb.save(f'checkpoints/model{step}.pth')

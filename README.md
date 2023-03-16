@@ -19,15 +19,8 @@ Simpl**E**s**T**-ViT (**E**-SPA + **T**AT) - vanilla transformer (without normal
 
 
 ## Dependencies:
-* pytorch 2.0
+* pytorch
 * wandb (optional)
-
-```bash
-sudo apt-get install build-essential
-```
-```bash
- pip3 install numpy --pre torch torchvision --force-reinstall --index-url https://download.pytorch.org/whl/nightly/cu117
-```
 
 ## Data:
 

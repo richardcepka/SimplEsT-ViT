@@ -8,7 +8,8 @@ Simpl**E**s**T**-ViT (**E**-SPA + **T**AT) - vanilla transformer (without normal
 5. [Results](#Results)
 
 ## Dependencies:
-
+* pytorch
+* wandb
 [https://github.com/libffcv/ffcv/discussions/284](https://github.com/libffcv/ffcv/discussions/284)
 ## Data:
 
@@ -32,7 +33,7 @@ Simpl**E**s**T**-ViT (**E**-SPA + **T**AT) - vanilla transformer (without normal
         ```bash 
         wget https://image-net.org/data/ILSVRC/2012/ILSVRC2012_img_val.tar
         ```
-6. Run the script extract_ILSVRC.sh from the PyTorch GitHub, [extract_ILSVRC.sh](https://github.com/pytorch/examples/blob/main/imagenet/extract_ILSVRC.sh) 
+6. Run the script extract_ILSVRC.sh from the PyTorch GitHub, [extract_ILSVRC.sh](https://github.com/pytorch/examples/blob/main/imagenet/extract_ILSVRC.sh) (~ double memory) 
     ```bash
     wget -qO- https://raw.githubusercontent.com/pytorch/examples/main/imagenet/extract_ILSVRC.sh | bash
     ```

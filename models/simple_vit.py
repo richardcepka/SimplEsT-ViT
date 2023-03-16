@@ -51,13 +51,9 @@ class Attention(nn.Module):
         self.scale = self.dim_head**-0.5
         
         self.norm = nn.LayerNorm(dim)
-        self.attend = nn.Softmax(dim=-1)
 
         self.to_qkv = nn.Linear(dim, dim * 3, bias=False)
         self.to_out = nn.Linear(dim, dim, bias=False)
-
-        self.flash = True 
-        if not self.flash: print("Not Using Flash Attention CUDA Kernels")
 
     def forward(self, x):
         x = self.norm(x)
@@ -66,13 +62,11 @@ class Attention(nn.Module):
         qkv = self.to_qkv(x).reshape(B, N, 3, self.heads, self.dim_head).permute(2, 0, 3, 1, 4)
         q, k, v = qkv.unbind(0)
 
-        if self.flash:
-            # efficient attention using Flash Attention CUDA kernels
-            out = F.scaled_dot_product_attention(q, k, v)  
-        else:
-            dots = torch.matmul(q, k.transpose(-1, -2)) * self.scale
-            attn = self.attend(dots)
-            out = torch.matmul(attn, v)
+        out = F.scaled_dot_product_attention(q, k, v)  
+        # dots = torch.matmul(q, k.transpose(-1, -2)) * self.scale
+        # attn = F.softmax(dots, dim=-1)
+        # out = torch.matmul(attn, v)
+
         return out.transpose(1, 2).reshape(B, N, D)
 
 
@@ -133,5 +127,4 @@ class SimpleViT(nn.Module):
         x = self.transformer(x)
         x = self.drop(x)  # better before pooling https://arxiv.org/pdf/2302.06112.pdf
         x = x.mean(dim=1)
-        # x = self.drop(x)
         return self.linear_head(x)

@@ -124,7 +124,7 @@ I want to thank KInIT for supporting the training costs of experiments. All expe
 ## ImageNet-1k Results:
 |                       |                               |    90 epoch    | 
 | :---                  |   :---                        |      :---:     | 
-| SimplEsT-ViT-S/16[^1] |   <p> TAT setup <p> ViT setup | <p>0.7053 <p>0.7061 |
+| SimplEsT-ViT-S/16[^1] |   <p> TAT setup <p> ViT setup | <p>0.7053 <p>0.7071|
 
 
 It is important to mention that we were unable to conduct a parameter sweep due to computational limitations. Instead, we tested three different learning rates - specifically, 0.0007, 0.0005, and 0.0003. However, we found that the first two led to divergence. Therefore, we believe our present results have room for further improvement.

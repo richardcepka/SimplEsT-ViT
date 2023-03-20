@@ -19,7 +19,7 @@ Simpl**E**s**T**-ViT (**E**-SPA + **T**AT) - vanilla transformer (without normal
 
 
 ## Dependencies:
-* pytorch
+* pytorch 2.0
 * wandb (optional)
 
 ## Data:
@@ -127,7 +127,7 @@ I want to thank KInIT for supporting the training costs of experiments. All expe
 | SimplEsT-ViT-S/16[^1] |   <p> TAT setup <p> ViT setup | <p>0.7053 <p>0.7061 |
 
 
-It's worth noting that we didn't conduct any parameter sweep due to computational constraints. We tested only two different learning rates, namely 0.0007 and 0.0005. However, both resulted in divergence. Therefore, we believe our present results have room for further improvement.
+It is important to mention that we were unable to conduct a parameter sweep due to computational limitations. Instead, we tested three different learning rates - specifically, 0.0007, 0.0005, and 0.0003. However, we found that the first two led to divergence. Therefore, we believe our present results have room for further improvement.
 
 Hyperparameters:
 * Epochs: 90

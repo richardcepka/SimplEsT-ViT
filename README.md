@@ -8,9 +8,9 @@ Simpl**E**s**T**-ViT (**E**-SPA + **T**AT) - vanilla transformer (without normal
 5. [Results](#Results)
 
 ## Dependencies:
-* pytorch
+* pytorch 2.0
 * wandb
-[https://github.com/libffcv/ffcv/discussions/284](https://github.com/libffcv/ffcv/discussions/284)
+* [https://github.com/libffcv/ffcv/discussions/284](https://github.com/libffcv/ffcv/discussions/284)
 ## Data:
 
 ### ImageNet-1k (~500GB):

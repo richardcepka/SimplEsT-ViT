@@ -13,7 +13,7 @@ Simpl**E**s**T**-ViT (**E**-SPA + **T**AT) - vanilla transformer (without normal
 [https://github.com/libffcv/ffcv/discussions/284](https://github.com/libffcv/ffcv/discussions/284)
 ## Data:
 
-### ImageNet (~500GB):
+### ImageNet-1k (~500GB):
 1. Go to https://www.image-net.org/download.php
 2. Request to download ImageNet
 3. Create data folder if not alredy exist
@@ -44,11 +44,3 @@ Simpl**E**s**T**-ViT (**E**-SPA + **T**AT) - vanilla transformer (without normal
 
     ```bash
     python3 prepare_imagenet.py --data_dir data/imagenet  --write_dir data/ffcv_imagenet --split val --num_workers 16  --max_resolution 512
-    ```
-## Results:
-
-|                   |    90 epoch    | 
-| :---              | :---:          | 
-| SimpleViT-S/16    |    76.5        |  
-| ResNet50-TAT      |    74.6        |  
-| SimplEsT-ViT-S/16 |    .           |    

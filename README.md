@@ -6,7 +6,7 @@ Simpl**E**s**T**-ViT (**E**-SPA + **T**AT) - vanilla transformer (without normal
 1. [Dependencies](#Dependencies)
 2. [Data](#Data)
     1. [TinyImageNet200](#TinyImageNet200)
-    2. [ImageNet](#ImageNet)
+    2. [ImageNet-1k](#ImageNet-1k)
 3. [Results](#Results)
     1. [TAT setup](#TAT-setup)
     2. [SimpleViT setup](#SimpleViT-setup)
@@ -14,7 +14,7 @@ Simpl**E**s**T**-ViT (**E**-SPA + **T**AT) - vanilla transformer (without normal
 4. [Experiments setup](#Experiments-setup)
     1. [Shampoo implementation discusion](#Shampoo-implementation-discusion)
     2. [Acknowledgment](#Acknowledgment)
-5. [ImageNet Results](#ImageNet-Results)
+5. [ImageNet-1k Results](#ImageNet-Results)
 6. [References](#References)
 
 
@@ -32,7 +32,7 @@ The dataset contains 110 000 images of 200 classes downsized to 64x64 colored im
     python3 downloand_tiny_imagenet.py -r data
     ```
 
-### ImageNet:
+### ImageNet-1k:
 1. Go to https://www.image-net.org/download.php
 2. Request to download ImageNet 
 3. Create data folder if not alredy exist
@@ -92,6 +92,7 @@ One block of SimplEsT-ViT consists of one attention layer (without projection) a
 * Batch size: 2048
 * Gradient cliping: 1 
 * Learning scheduler: Cosine with linear wurmup
+
 * Dropout: {0, 0.2}
 * Weight decay: {0, 0.00005}
 
@@ -101,6 +102,14 @@ One block of SimplEsT-ViT consists of one attention layer (without projection) a
         * SimpleViT - 0.001
     * Shampoo, Learning rate:
         * SimplEsT-ViT - {0.0007, 0.0005} 
+
+* Tat setup: 
+    * Label smoothing: 0.1
+    * Dropout: {0, 0.2}
+
+* ViT setup:
+    * RandAugment: level 10
+    * Mixup: probability 0.2
 
 It would be beneficial to perform a wider range of experiments to determine the optimal learning rate and weight decay values, particularly for weight decay. This is especially relevant given that the normalization achieved through [LN makes the network scale-invariant](https://arxiv.org/pdf/1607.06450.pdf), resulting in a weight decay [exhibiting distinct behavior](https://www.cs.toronto.edu/~rgrosse/courses/csc2541_2022/readings/L05_normalization.pdf) compared to networks without normalization. We hypothesize that weight decay should be considerably lower than for SimpleViT.
 
@@ -112,14 +121,32 @@ We also tried Newton's method with the tricks mentioned [here](https://twitter.c
 ### Acknowledgment: 
 I want to thank KInIT for supporting the training costs of experiments. All experiments were done on RTX 3090.
 
-## ImageNet Results:
-We are currently working on ImageNet experiments. We will update the repo with the results soon.
+## ImageNet-1k Results:
+|                       |                               |    90 epoch    | 
+| :---                  |   :---                        |      :---:     | 
+| SimplEsT-ViT-S/16[^1] |   <p> TAT setup <p> ViT setup | <p>0.7053 <p>0.7061 |
 
-|                   |    90 epoch    | 
-| :---              | :---:          | 
-| SimpleViT-S/16    |    76.5        |  
-| ResNet50-TAT[^1]     |    74.6        |  
-| SimplEsT-ViT-S/16[^2]|    .           |    
+
+It's worth noting that we didn't conduct any parameter sweep due to computational constraints. We tested only two different learning rates, namely 0.0007 and 0.0005. However, both resulted in divergence. Therefore, we believe our present results have room for further improvement.
+
+Hyperparameters:
+* Epochs: 90
+* WarmUp: 10 000 steps
+* Batch size: 1024
+* Gradient cliping: 1
+* Learning scheduler: Cosine with linear wurmup
+* Optimizer: Shampoo@25
+* Learning rate: 0.0003
+* Weight decay: 0.00001
+
+    Tat setup: 
+    * Label smoothing: 0.1
+    * Dropout: 0.2
+
+    ViT setup:
+    * RandAugment: level 10
+    * Mixup: probability 0.2
+
 
 ## References: 
 * E-SPA - [Deep Transformers without Shortcuts: Modifying Self-attention for Faithful Signal Propagation ](https://openreview.net/forum?id=NPrsUQgMjKK)
@@ -130,7 +157,4 @@ We are currently working on ImageNet experiments. We will update the repo with t
 * Shampoo - [Shampoo: Preconditioned Stochastic Tensor Optimization](https://arxiv.org/abs/1802.09568), [Scalable Second Order Optimization for Deep Learning](https://arxiv.org/abs/2002.09018)
 * Adam - [Adam: A Method for Stochastic Optimization](https://arxiv.org/abs/1412.6980)
 
-
-[^1]: From TaT paper Table 4, 90 epochs with w = 0.0. TaT setup: label smoothing + dropout + weight decay.
-
-[^2]: ~20 M parameters.
+[^1]: ~20 M parameters.

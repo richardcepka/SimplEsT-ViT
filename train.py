@@ -34,7 +34,7 @@ class Config:
     # wandb logging
     wandb_log: bool = False  # disabled by default
     wandb_project: str = 'nanovit'
-    wandb_run_name: str = 'imagenet/shampoo/TAT-setup'
+    wandb_run_name: str = ''
     # training
     epochs: int = 90
     num_warmup_steps: int = 10_000
@@ -49,7 +49,7 @@ class Config:
     dtype: str = "bfloat16"
     mixp_enabled: bool = True
     # data
-    batch_size: int = 512
+    batch_size: int = 512  # 24 GB GPU
     n_workers: int = 16
     # model
     model_name: str = "espatat"  # "simplevit", "espatat"
@@ -73,7 +73,7 @@ class Config:
     opt_name: str = "shampoo"
     opt_cfg: dict = field(
         default_factory=lambda: dict(
-            lr=0.0005,  # 0.0005
+            lr=0.0003,  # 0.0005
             weight_decay=0.00001,  # 0.00005
             precondition_frequency=25,
             start_preconditioning_step=25,

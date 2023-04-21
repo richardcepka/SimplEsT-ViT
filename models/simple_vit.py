@@ -67,7 +67,7 @@ class Attention(nn.Module):
         # attn = F.softmax(dots, dim=-1)
         # out = torch.matmul(attn, v)
 
-        return out.transpose(1, 2).reshape(B, N, D)
+        return self.to_out(out.transpose(1, 2).reshape(B, N, D))
 
 
 class Transformer(nn.Module):
